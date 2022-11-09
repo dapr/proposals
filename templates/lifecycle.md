@@ -1,5 +1,7 @@
 # Feature name
 
+> If you need more information on what needs to be completed, look in the `guides` directory for relevant guidance.
+
 # Links
 
 Links to any relevant resources go here:
