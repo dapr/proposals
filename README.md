@@ -27,6 +27,8 @@ Proposal file are named in the following format:
 Where *NNNN* is the next incremental number in the proposal repository, as a 4 digit number (i.e 0001, 0002...), and *FLAGS* is one (or possibly more)  of:
 
 * B - Building block change / creation
+* C - Components
+* I - Dapr CLI
 * P - The proposal Process itself
 * R - Runtime
 * S - Affects SDKs 
@@ -39,7 +41,7 @@ So, for example, a proposal to create a new building block, such as the workflow
 * Proposal will be reviewed by the community and the author(s) of the proposal
 * The author(s) address questions/comments from the community in the proposal and adjust the proposal based on feedback
 * Once the feedback phase is complete, and a proposal has been accepted, the proposal will be merged into this repository
-* An issue needs to be created in dapr/dapr created from the template in templates/lifecycle.md to track the work that needs to be done to implement this proposal
+* An issue needs to be created in dapr/dapr created from the template in [templates/lifecycle.md](templates/lifecycle.md) to track the work that needs to be done to implement this proposal
 * Release of the feature will be slated for a specific release version of Dapr
 
 
