@@ -25,15 +25,15 @@ APIs are expected to go through three stages in their lifetime: Alpha, Beta and 
 
 * **Alpha**
    * API is not production ready yet and might contain bugs
-   * Recommended for only non-business-critical uses because of potential for incompatible changes in subsequent releases
+   * Recommended for non-business-critical use only because of potential for incompatible changes in subsequent releases
    * May not be backwards-compatible with an API it intends to replace
    * May not be highly performant or support all SDKs
-  
+
 * **Beta**
    * API is not production ready yet
    * Multiple components implement the API and API contract is mostly finalized
    * Recommended for non-business-critical use only due to potentially backwards-incompatible changes in subsequent releases
-   * Should have support in (at least) the primary SDKs (i.e Python, Go, Java?)
+   * Should have support in (at least) the _"core"_ SDKs _(i.e. Python, Go, Java)_
    * Performance should be production-ready but may not be in all cases
 
 * **Stable**
@@ -48,26 +48,28 @@ No matter if the change is a net-new API or an update to an existing API, the fo
 
 * Changes to documentation must be identified and written
 * Existing E2E and performance tests must pass
-* If a new command/modifications to existing command is required to facilitate ease of use of the new API, related code must be added to the Dapr CLI 
+* If a new command/modifications to existing command is required to facilitate ease of use of the new API, related code must be added to the Dapr CLI
 
 ### Creation of new APIs
 
-* Both HTTP and gRPC protocols need to be supported for the new API
-* Documentation must be provided for the API 
-  * HTTP API must be added to Dapr documentatio
+All new APIs that are defined start at the Alpha stage.
+
+* Both HTTP and gRPC protocols should be supported for the new API
+* Documentation must be provided for the API
+  * HTTP API must be added to the `Reference` section in the Dapr documentatio
 * Issues should be added in `dapr/quickstarts` to create examples for the new API to enable users to easily explore the new functionality provided by the API
 * If the new API is considered an _optimization_ of an existing API (say, the addition of `BulkGetSecrets` alongside `GetSecret`) then:
   * The performance improvement gained due to this API should be documented
   * Guidance must be provided to the users in docs as to when to use this API vs using the older one
 * Performance tests should (though preferably must) exist for this new API
-* _Must_ include new E2E tests that exercise the API
+* _Should_ include new E2E tests that exercise the API
 
 
 ### Updates to existing APIs
 
 Depending on the phase of the existing API, the proposed changes may or may not be backwards-incompatible
 
-_Backwards-**incompatible** changes_ 
+_Backwards-**incompatible** changes_
 
 * May _only_ be proposed to Alpha or Beta APIs
 * Require updates to existing E2E tests to support these changes
@@ -90,7 +92,7 @@ Finally on addition of a new API, there may be addition of the capability to eit
 - Conformance tests enable validating the components compliance with defined interface for the building block and creates a baseline for conformance testing any new components added. Conformance tests may be added for the new API with the understanding that it may evolve
 
 
-**Creating new API for an existing building block in `dapr/components-contrib`**
+### Creating new API for an existing building block in `dapr/components-contrib`
 
 - Interfaces changes for the new API must be defined and agreed upon
 - Existing components that support the new API must be enhanced to be in compliance with the proposed interface as per the defined and agreed upon scope of the original proposal
@@ -101,25 +103,25 @@ Finally on addition of a new API, there may be addition of the capability to eit
 
 
 
-## Progression of an API 
+## Progression of an API/Building block
 
-### Alpha to Beta 
+### Alpha to Beta
 
 In addition to the requirements that are required of any Alpha API, the following requirements must be met so that the API can graduate to Beta. For an API to be promoted to Beta, it must exist for at least one release cycle after its initial addition as Alpha. (i.e something added in 1.10 could become  Beta in 1.12, having been stabilized through 1.11)
 
-For all APIs, the following criteria need to be met: 
+For all APIs, the following criteria need to be met:
 
 * E2E test with extensive positive and negative scenarios must be defined
 * Most (if not all) changes needed in the user facing structures must be considered to be complete (in order to reduce the number of breaking changes)
-* All "core" SDKs must have support for this API _(Python, Go, .NET, Java?)_
-* Documentation of the API must be completely up-to-date with any changes tha
+* All _"core"_ SDKs must have support for this API _(i.e. Python, Go, .NET, Java)_
+* Documentation of the API must be completely up-to-date
 * Quickstarts must be defined for the API allowing users to quickly explore the API
 * Performance tests should be added (if not already available in Alpha stage) / updated where relevant
 
 
 For **building blocks** to progress, the following criteria are required:
 
-* Conformance test(s) must be added/updated. (this is for scenario for new building block not having conformance test in the Alpha stage)
+* Conformance test(s) must be added(in case a new building block does not have conformance tests in the Alpha stage)/updated
 * Conformance tests must test both positive and negative cases (i.e deliberately attempt to break them)
 * Certification tests should be added to the different components and this API must be exercised in the certification tests
 * Multiple implementations must be present for this building block
@@ -128,8 +130,8 @@ For **building blocks** to progress, the following criteria are required:
 
 In addition to the requirements for a Beta API, the following requirements must be met so that the API can graduate to Stable. Similar to the previous phase change, this API must have been in the Beta phase for at least one full release _without any breaking changes_. In addition, the following criteria apply:
 
-* E2E scenarios must be well defined and comprehensive 
-* Performance tests must be added/updated (this is for scenario where new building block does not have performance tests in the Alpha/Beta stage)
+* E2E scenarios must be well defined and comprehensive
+* Performance tests must be added(in case a new building block does not have performance tests in the Alpha/Beta stage)/updated
 * Expected performance data must be added to documentation
 
 For **building blocks** to progress, the following must also be true:
