@@ -31,7 +31,7 @@ APIs are expected to go through three stages in their lifetime: Alpha, Beta and 
 
 * **Beta**
    * API is not production ready yet
-   * If an API becomes Beta, the intention is that it will continue on to become stable and not be removed
+   * If an API moves into Beta, the intention is that it will continue on to become stable and not be removed
    * Multiple components implement the API and API contract is mostly finalized
    * Recommended for non-business-critical use only due to potentially backwards-incompatible changes in subsequent releases
    * Should have support in (at least) the _"core"_ SDKs _(i.e. Python, Go, Java)_
