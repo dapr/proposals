@@ -75,5 +75,5 @@ Additionally, for **building blocks**:
 - [ ] Documentation is complete in `dapr/docs` with any changes since Beta
 - [ ] E2E scenarios well defined and comprehensive
 - [ ] Performance tests exist and regressions will prevent them from successfully passing
-- [ ] Performance data added to documentation 
+- [ ] Performance data added to documentation (https://docs.dapr.io/operations/performance-and-scalability/)
 
