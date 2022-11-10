@@ -49,6 +49,7 @@ Additionally, for **building blocks**:
 ## Beta
 
 - [ ] E2E tests are up-to-date and comprehensive
+- [ ] SDK spec is updated
 - [ ] No major changes to the API have occurred in the last XXX time period (releases? months?)
 - [ ] Support in core SDKs
    - [ ] Python
