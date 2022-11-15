@@ -140,3 +140,4 @@ For **building blocks** to progress, the following must also be true:
 * E2E tests must exercise _at least two different implementations_ of the building block's API
 * Conformance tests testing both positive and negative cases must be defined
 * Certification tests for multiple components implementing this API must be defined
+* When applicable (no hard constraints involved like performance or environment limitations), support for [pluggable components](https://docs.dapr.io/operations/components/pluggable-components/pluggable-components-overview/) - with or without sdks
