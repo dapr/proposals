@@ -44,6 +44,9 @@ So, for example, a proposal to create a new building block, such as the workflow
 * An issue needs to be created in dapr/dapr created from the template in [templates/lifecycle.md](templates/lifecycle.md) to track the work that needs to be done to implement this proposal
 * Release of the feature will be slated for a specific release version of Dapr
 
+### Proposal acceptance
+
+To accept a proposal, the maintainers of the relevant repository must vote using comments on the respective PR. A proposal is accepted by a majority vote supporting the proposal. When this condition is true, a maintainer from the relevant repository may approve and merge the proposal PR.
 
 ## Feature lifecycle outline
 
