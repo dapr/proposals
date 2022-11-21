@@ -46,7 +46,7 @@ So, for example, a proposal to create a new building block, such as the workflow
 
 ### Proposal acceptance
 
-To accept a proposal, the maintainers of the relevant repositories must vote using comments on the respective PR. A proposal is accepted by a majority vote supporting the proposal. When this condition is true, a maintainer from the relevant repositories may approve and merge the proposal PR. While everyone are encouraged to participate and drive feedback, only the maintainers of the relevant repository have binding votes. Maintainers of other repositories and community contributors can cast non-binding votes to show support or lack thereof. The majority vote needed is a simple majority (51% or more).
+To accept a proposal, the maintainers of the relevant repository must vote using comments on the respective PR. A proposal is accepted by a majority vote supporting the proposal. When this condition is true, a maintainer from the relevant repository may approve and merge the proposal PR. While everyone are encouraged to participate and drive feedback, only the maintainers of the relevant repository have binding votes. Maintainers of other repositories and community contributors can cast non-binding votes to show support or lack thereof. The majority vote needed is a simple majority (51% or more).
 
 ## Feature lifecycle outline
 
