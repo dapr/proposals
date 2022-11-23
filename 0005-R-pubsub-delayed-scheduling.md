@@ -1,4 +1,4 @@
-# Title of proposal 
+# Pubsub delayed scheduling
 
 * Author: Yaron Schneider (@yaron2)
 * State: Ready for Implementation
