@@ -48,6 +48,7 @@ Please link to any issues that this proposal is related to, for example, are the
 
 * https://github.com/nextauthjs/next-auth/pull/5240
 * https://github.com/dapr/dapr/issues/5380
+* https://github.com/dapr/dapr/issues/5094
 
 ### Related Ecosystem Items
 
