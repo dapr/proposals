@@ -44,6 +44,10 @@ Doubling down on the areas, we get into multiple items that needs improvement or
 
 Proposed solutions for some of the problems identified above:
 
+* Improve `dapr init` experience
+* Have a CLI [config file](https://github.com/dapr/cli/issues/1058) with sane defaults and additional knobs to improve `init` experience
+* Run multiple services with Dapr sidecar, and keep track of ports
+  * Proposed solution is [dapr compose](https://github.com/dapr/cli/issues/1123)
 * Component discovery and definition (Related to <https://github.com/dapr/components-contrib/issues/2014> - component metadata schema)
   * Add command to [lint](https://github.com/dapr/cli/issues/1074) component files and validate them
     * This is for allowing users to quickly validate the correctness of the YAML configuration before running it. Also this is expected to help users by providing informational error messages so that users can quickly identify issues in their YAML configuration
@@ -69,10 +73,7 @@ Proposed solutions for some of the problems identified above:
   * [Feature] Add command support for all [custom CRDs](https://github.com/dapr/cli/issues/950) in Dapr
     * Similar to `dapr components`, `dapr configuration`, add ability to list and view `resiliency and subscription` CRDs
     * Add support for users to view CRDs in local dev environment apart from Kubernetes support
-* Improve `dapr init` experience
-* Have a CLI [config file](https://github.com/dapr/cli/issues/1058) with sane defaults and additional knobs to improve `init` experience
-* Run multiple services with Dapr sidecar, and keep track of ports
-  * Proposed solution is [dapr compose](https://github.com/dapr/cli/issues/1123)
+
 
 ## Targets for 1.10
 
