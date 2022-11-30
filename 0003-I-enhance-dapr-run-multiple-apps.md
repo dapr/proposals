@@ -100,7 +100,6 @@ apps:
     app_port: 8080
     app_health_check_path: "/healthz" # All _ converted to - for all properties defined under daprd section
     command: ["python3" "app.py"]
-    restart: false
   - app_id: backend
     app_dir: ./backend/
     app_protocol: GRPC
@@ -109,7 +108,6 @@ apps:
     env:
       - DEBUG: false
     command: ["./backend"]
-    restart: true
 ```
 > Note: Running the dependencies for each app as contianers is out of scope for this discussion initially. We might consider that in the future.
 
@@ -125,7 +123,6 @@ apps:
   - other dapr run parameters (mostly pass through flags to `daprd`) All properties must have `_` as separators which will be validated(so that no unknown flags are passed) and translated to `-` for cmd line arguments for `daprd`.
   - `command` ["exec" "arg1" "arg2"] format for application command
   - `env` which overrides or adds to common env var defined or the shell env var passed in when `dapr compose` is called
-  - `restart` field which lets `dapr compose` know if the app/sidecar should be restarted on crash or not
 
 The DAPR_HTTP_PORT and DAPR_GRPC_PORT will be passed in as extra environment variables to the application that is being run. Those flags for `daprd` can be overridden in the run configuration file above but that is optional as random ports will be assigned as needed.
 
