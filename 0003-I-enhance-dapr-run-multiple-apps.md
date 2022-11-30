@@ -159,7 +159,7 @@ If the path for the flag is a directory, then it expects the `dapr.yaml` file to
 
 The interaction flow for the `dapr run -f <path>` is shown as below.
 
-![interaction flow](./resources/0003-I-enhance-dapr-run-multiple-apps/interaction-flow.png)
+![interaction flow](./resources/0003-I-enhance-dapr-run-multiple-apps/interaction-flow-1.png)
 
 > Note: app-id needs to be unique across all applications that have been run using `dapr run`.
 ### Logging options
