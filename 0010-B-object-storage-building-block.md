@@ -11,6 +11,17 @@ This is a design proposal for a new "object storage" building block which allows
 
 We define **objects** as sequences of unstructured data, that should be assumed to be possibly large (many MBs or even GBs in size) and binary. Examples include images and videos, Office documents, etc.
 
+## Background
+
+Dapr currently offers the state store building block which allows storing (mostly) unstructured data, and is backed by services that include object storage services (e.g. AWS S3, Azure Blob Storage), in addition to databases of various kinds.
+
+However, as its name implies, the Dapr state store building block is optimized for storing state, such as KV pairs and small payloads. Due to design and implementation decisions made over the years, including the need to support a variety of backends, Dapr state stores are not suitable for working with large blobs of (opaque) data, as they buffer the entire data in memory multiple times and, depending on the component, can perform various kinds of transformations on the data. Using the current Dapr state stores, users trying to store "large" blobs (many MBs to GBs) have a very poor experience at the moment, which ranges from bad performance all the way to exhausting the memory of the host system running Dapr.
+
+This building block aims at allowing users to store data of arbitrary size, treated in a completely opaque way by Dapr, in a way that is performant and scalable. This will be guaranteed by certain design decisions such as:
+
+- Supporting only backends that are optimized for storing objects, such as Azure Blob Storage, AWS S3, S3-compatible endpoints, and perhaps the local filesystem.
+- All APIs are streaming-first, optimized to work with data as a stream, so there's no need for Dapr to buffer the entire payload in memory at any time.
+
 ## Implementation Details
 
 ### Building block interface
