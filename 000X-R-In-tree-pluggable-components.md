@@ -2,7 +2,7 @@
 
 * Author(s): Alessandro Segala (@ItalyPaleAle)
 * State: {Ready for Implementation, Implemented}
-* Updated: [Date]
+* Updated: 2023-02-18
 
 ## Definitions
 
@@ -10,28 +10,28 @@
 
 ## Overview
 
-This is a proposal for implementing the infrastructure to allow in-tree components to be shipped with Dapr but instantiated as pluggable components by the Dapr runtime.
+This is a proposal for implementing the infrastructure to allow in-tree components to be shipped with Dapr, in the same Docker image as `daprd`, but instantiated as pluggable components by the Dapr runtime.
 
 This is **not** a proposal to remove components from Dapr's distribution or remove them from the Dapr repositories. Components that are instantiated as in-tree pluggable components should work for end-users in the same way that statically-compiled components do.
 
 ## Background: business problem
 
-As of Dapr 1.10, we are shipping over 110 components across all of our building blocks, and the number is growing pretty much constantly with each release. This is great and it's the sign of a healthy OSS project with a growing community.
+As of Dapr 1.10, we are shipping over 110 components across all of our building blocks, and the number is growing steadily with each release. This is great and it's the sign of a healthy OSS project with a growing community.
 
 However, this also brings some challenges. Dapr is written in Go, which as a technology incentivizes binaries to be statically compiled and self-contained. As of writing, there's no "plug-in" system for Go that works reliably across all operating systems. This means that the more components Dapr gains, the larger our binary becomes, and the more code is loaded in memory when `daprd` is started.
 
 The problems we've seen include, but are not limited to:
 
 * Amount of data loaded in memory.  
-  Dapr 1.10 has a virtual memory of almost 900MB. Most of that is code pages that are not really a burden on the system, but the amount is growing with each release as we ship more code. A lot of that code is indeed due to components.  
-  More concerning, however, is when components instantiate memory when `daprd` is started, for example in `init` functions in Go packages. Often this memory is allocated on the heap, which also means that it causes more work for the garbage collector and has a negative impact on `daprd` overall.
+  Dapr 1.10 has a virtual memory footprint of almost 900MB. Most of that is code pages that are not really a burden on the system, as they're offloaded easily by the kernel; nevertheless, the amount is growing with each release as we ship more code. A lot of that code is indeed due to components.  
+  More concerning, however, is when components instantiate memory when `daprd` is started, for example in `init` functions in Go packages. Often this memory is allocated on the heap, which also means that it causes more work for the garbage collector and has a negative impact on the performance of `daprd` overall.
 * Concerns with running on environments with limited resources.  
-  This is connected with the point above. Certain systems such as embedded ones or IoT devices have limited resources, starting from storage and memory, so the increasing footprint of `daprd` is a concern in these scenarios. For example, we are aware of at least one large Dapr users who is re-building Dapr with a very limited subset of components to be able to fit it on embedded devices.
+  This is a corollary of the point above. Certain systems such as embedded ones or IoT devices have limited resources, including from storage and memory, so the increasing footprint of `daprd` is a concern in these scenarios. For example, we are aware of at least one large Dapr users who is re-building Dapr with a very limited subset of components to be able to fit it on embedded devices.
 * Effect of security vulnerabilities in third-party packages.  
   Most of our components depend on third-party packages such as SDKs, and we import dozens of them in Dapr. Suppose that component X depended on a library for which a vulnerability was found. Users who do not leverage component X are likely not impacted by the vulnerability, but they are still running a binary that depends on a vulnerable package, possibly causing compliance conerns.
 * Ability to ship some components with outsized impact on performance.  
-  Already in the last months we've had to abandon components that were accepted in `dapr/components-contrib`, after being reviewed, and then we had to remove them because we noticed they had an unacceptable impact on the resources used by `daprd`. Sadly, our processes and tools don't allow us to catch these things until the component is actually registered in `daprd`.  
-  This has a negative impact on contributors, who invest time and energy to write the code of a new component, on maintainers who spend cycles reviewing the contributions, and on users who do not get to enjoy the new features.
+  Already in the last months we've had components that were accepted in `dapr/components-contrib`, after being reviewed, and then we had to remove them because we noticed they had an unacceptable impact on the resources used by `daprd`. Sadly, our processes and tools don't allow us to catch these things easily until the component is actually registered in `daprd`.  
+  This has a negative impact on contributors, who invest time and energy to write the code of a new component, on maintainers who spend cycles reviewing the pull requests, and on users who do not get to enjoy the new features.
 
 ## Related Items
 
@@ -109,11 +109,15 @@ func main() {
 }
 ```
 
+> The code above is to be considered "pseudo-code" for reference only. The acutal interfaces of the internal packages are implementation details outside of the scope of this proposal.
+
 The component is then compiled like any other Go binary, creating a statically-compiled binary `intree_pluggable`.
 
 ### Packaging
 
-The last step is packaging. After building all binaries, **they are included in the same container image as `daprd`**. That's important so end-users don't need to do anything different when deploying Dapr than they do today.
+The last step is packaging. After building all binaries, **they are included in the same container image as `daprd`**, for example in the `/components/` path within the container.
+
+That's important, so end-users don't need to do anything different when deploying Dapr than they do today.
 
 ## Future expansion
 
