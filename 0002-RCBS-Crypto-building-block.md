@@ -1,8 +1,7 @@
 # Crypto(graphy) building block
 
-* Author(s): Alessandro Segala (@ItalyPaleAle)
-* State: POC implemented (dapr/dapr#5429 and dapr/components-contrib#2237)
-* Updated: 2022-11-16
+- Author(s): Alessandro Segala (@ItalyPaleAle)
+- Updated: 2023-03-27
 
 ## Overview
 
@@ -78,7 +77,7 @@ In the first version of the building block, we define 2 higher level operations 
 
 > **Sources:** The encryption scheme that Dapr uses is heavily inspired by the [Tink wire format](https://developers.google.com/tink/wire-format) (from the Tink library maintained by Google), as well as by Filippo Valsorda's [age](https://age-encryption.org/v1), and Minio's [DARE](https://github.com/minio/sio).
 
-The Dapr encryption scheme is optimized for processing data as a stream. Data is chunked into multiple parts which are encrypted independently. This allows us to return data to callers as a stream, even when decrypting messages, being confident that we are not flushing unverified data to the client.
+The **Dapr encryption scheme** is optimized for processing data as a stream. Data is chunked into multiple parts which are encrypted independently. This allows us to return data to callers as a stream, even when decrypting messages, being confident that we are not flushing unverified data to the client.
 
 ### Key
 
@@ -115,7 +114,7 @@ The **header** is human-readable and contains 3 items, each terminated by a line
 
 ```text
 dapr.io/enc/v1
-{"kw":1,"wfk":"hGYjwDpWEXEymSTFZ95zgX8krElb3Gqyls67R8zJA3k=","cph":1,"np":"Y3J5cHRvIQ=="}
+{"k":"mykey","kw":1,"wfk":"hGYjwDpWEXEymSTFZ95zgX8krElb3Gqyls67R8zJA3k=","cph":1,"np":"Y3J5cHRvIQ=="}
 pBDKLrhAWL7IAvDKBV/v7lmbTG6AEZbf3srUN0Pnn30=
 ```
 
@@ -127,6 +126,9 @@ Its corresponding Go struct is:
 
 ```go
 type Manifest struct {
+	// Name of the key that can be used to decrypt the message.
+	// This is optional, and if specified can be in the format `key` or `key/version`.
+	KeyName string `json:"k,omitempty"`
 	// ID of the wrapping algorithm used.
 	// 0x01 = AES-KW
 	// 0x02 = RSA-OAEP-256
@@ -142,10 +144,11 @@ type Manifest struct {
 }
 ```
 
-> Dapr will choose AES-GCM as cipher by default.  
-> ChaCha20-Poly1305 is offered as an option for users that work with hardware that doesn't support AES-NI (such as Raspberry Pi), and needs to be enabled manually.
-
-> In the future, we can support other authenticated ciphers such as AES-CBC with HMAC-SHA256.
+- **`KeyName`** is the name of the key that can be used to decrypt the message. Usually this is the same as the name of the key used to encrypt the message, but when asymmetric ciphers are used, it could be different. Including a `KeyName` in the manifest is not required, but when i'ts present, it's used as the default value for the key name while decrypting the document (however, users can override this value by passing a custom one while decrypting the document).
+- **`Cipher`** indicates the cipher used to encrypt the actual data, and it must be an [AEAD](https://en.wikipedia.org/wiki/Authenticated_encryption#Authenticated_encryption_with_associated_data_(AEAD)) symmetric cipher.
+  - Dapr will choose AES-GCM as cipher by default.
+  - ChaCha20-Poly1305 is offered as an option for users that work with hardware that doesn't support AES-NI (such as Raspberry Pi), and needs to be enabled manually.
+  - In the future, we can support other authenticated ciphers such as AES-CBC with HMAC-SHA256.
 
 #### MAC
 
@@ -188,7 +191,7 @@ Segments are encrypted with a **Payload Key (PK)** that is derived from the (pla
 payload-key = HKDF-SHA-256(ikm = file key, salt = nonce prefix, info = "payload")
 ```
 
-Each segment is encrypted using a different 12-byte nonce / initialization vector:
+Each segment is encrypted using a different 12-byte nonce:
 
 ```text
 nonce_prefix || i || last_segment
@@ -621,8 +624,17 @@ message EncryptRequestOptions {
   string component_name = 1 [json_name="component"];
   // Name (or name/version) of the key.
   string key = 2;
-  // Force algorithm to use: "aes-gcm" or "chacha20-poly1305" (optional)
-  string algorithm = 3;
+  // Force algorithm to use to encrypt data: "aes-gcm" or "chacha20-poly1305" (optional)
+  string algorithm = 10;
+  // If true, the encrypted document does not contain a key reference.
+  // In that case, calls to the Decrypt method must provide a key reference (name or name/version).
+  // Defaults to false.
+  bool key_unbound = 11 [json_name="keyUnbound"]; 
+  // Key reference to embed in the encrypted document (name or name/version).
+  // This is helpful if the reference of the key used to decrypt the document is different from the one used to encrypt it.
+  // If unset, uses the reference of the key used to encrypt the document (this is the default behavior).
+  // This option is ignored if key_unbound is true.
+  string key_binding = 12 [json_name="keyBinding"];
 }
 
 message EncryptResponse {
@@ -642,8 +654,10 @@ message DecryptRequest {
 message DecryptRequestOptions {
   // Name of the component
   string component_name = 1 [json_name="component"];
-  // Name (or name/version) of the key.
-  string key = 2;
+  // Name (or name/version) of the key to decrypt the message.
+  // Overrides any key reference included in the message if present.
+  // This is required if the message doesn't include a key reference (i.e. was created with key_unbound set to true).
+  string key = 12;
 }
 
 message DecryptResponse {
