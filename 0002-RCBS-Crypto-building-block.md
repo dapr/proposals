@@ -629,12 +629,12 @@ message EncryptRequestOptions {
   // If true, the encrypted document does not contain a key reference.
   // In that case, calls to the Decrypt method must provide a key reference (name or name/version).
   // Defaults to false.
-  bool key_unbound = 11 [json_name="keyUnbound"]; 
+  bool omit_decryption_key_name = 11 [json_name="omitDecryptionKeyName"]; 
   // Key reference to embed in the encrypted document (name or name/version).
   // This is helpful if the reference of the key used to decrypt the document is different from the one used to encrypt it.
   // If unset, uses the reference of the key used to encrypt the document (this is the default behavior).
-  // This option is ignored if key_unbound is true.
-  string key_binding = 12 [json_name="keyBinding"];
+  // This option is ignored if omit_decryption_key_name is true.
+  string decryption_key = 12 [json_name="decryptionKey"];
 }
 
 message EncryptResponse {
@@ -656,7 +656,7 @@ message DecryptRequestOptions {
   string component_name = 1 [json_name="component"];
   // Name (or name/version) of the key to decrypt the message.
   // Overrides any key reference included in the message if present.
-  // This is required if the message doesn't include a key reference (i.e. was created with key_unbound set to true).
+  // This is required if the message doesn't include a key reference (i.e. was created with omit_decryption_key_name set to true).
   string key = 12;
 }
 
