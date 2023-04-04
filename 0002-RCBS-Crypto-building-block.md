@@ -85,12 +85,13 @@ Each message is encrypted with a 256-bit symmetric **File Key (FK)** that is ran
 
 The FK is wrapped using a key stored in a key vault (**Key Encryption Key (KEK)**) by Dapr. The result of the wrapping operation is the **Wrapped File Key (WFK)**.  The algorithm used depends on the type of the KEK as well as the algorithms supported by the component: in order of preference:
 
-- Symmetric keys:
-    - AES-KW ([RFC 3394](https://www.rfc-editor.org/rfc/rfc3394.html)): `AES-KW`
-    - AES-GCM-SIV: `AES-GCM-SIV`  
-      This will be implemented if it can be used with keys stored in key vaults; to be confirmed.
-- RSA keys:
-    - RSA OAEP with SHA-256: `RSA-OAEP-256`
+- For symmetric keys:
+  - AES-KW with 256-bit keys ([RFC 3394](https://www.rfc-editor.org/rfc/rfc3394.html)): `AES-256-KW`
+    - Because the File Key is 256-bit long, only 256-bit wrapping keys can be used (i.e. `AES-256-KW`).
+- For RSA keys:
+  - RSA OAEP with SHA-256: `RSA-OAEP-256`
+    - Dapr doesn't impose limitations on the size of the key, and any key bigger than 1024 bits should work; however, 4096-bit keys are strongly recommended.
+
 
 > In the future, we should explore how to add support for elliptic curve cryptography, for example P-256/P-384/P-521 or Curve25519, which requires performing a static ECDH key agreement.
 
@@ -130,7 +131,7 @@ type Manifest struct {
 	// This is optional, and if specified can be in the format `key` or `key/version`.
 	KeyName string `json:"k,omitempty"`
 	// ID of the wrapping algorithm used.
-	// 0x01 = AES-KW
+	// 0x01 = AES-256-KW
 	// 0x02 = RSA-OAEP-256
 	KeyWrappingAlgorithm int `json:"kw"`
 	// The Wrapped File Key
