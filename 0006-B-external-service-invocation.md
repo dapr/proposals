@@ -46,7 +46,9 @@ Feature enhancement to enable external service invocation
 using the existing service invocation building block allowing service communication using HTTP protocol.
 
 * What is deliberately *not* in scope?
-1. Additional authentication to include OAuth2 is not within scope of this initial proposal and implementation.
+gRPC invocation as well as additional authentication, to include OAuth2,
+is not within scope of this initial proposal and implementation.
+
 
 * What alternatives have been considered, and why do they not solve the problem?
 1. Expanding the existing HTTP Binding.
@@ -59,21 +61,7 @@ and be forced to continue abiding by an awkwardly clunky workaround.
 Additional pros/cons may be found in the [linked issue's discussion](https://github.com/dapr/dapr/issues/4549#issuecomment-1414841151).
 
 * Are there any trade-offs being made? (space for time, for example)
-1. No explicitly dedicated external service invocation Dapr endpoint will be created in the interest of time.
-An endpoint such as the following:
-
-```
-http://localhost:< daprPort >/v1.0/invoke/external/< externalUrl >/method/< method-name >
-
-```
-
-will not be created as this would require many changes across SDKs & documentation,
-alongside wide-spread community updates.
-While something like this may be more intuitive and explicit that it is for external service invocation,
-it would also be fine, and highly compatible, to stick with the existing Dapr endpoint for service invocation.
-
-By keeping a minimal scope to implement v1 for external service invocation,
-we will ensure this is completed for Dapr v1.11 release and create a building block to which additional scope/features may be added.
+N/A
 
 * What advantages / disadvantages does this proposal have? 
 This proposal allows service invocation to be enabled for non-Dapr endpoints.
