@@ -85,7 +85,7 @@ Cons:
 
 How will this work, technically?
 
-Allow configuration of pieces needed for external service invocation through creation of new CRD titled `ExternalHTTPEndpointCRD` with following `yaml` specifications:
+Allow configuration of pieces needed for external service invocation through creation of new CRD titled `ExternalHTTPEndpoint` with following `yaml` specifications:
 
 ```
         externalServiceInvocation:
