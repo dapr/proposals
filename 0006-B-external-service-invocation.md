@@ -85,31 +85,61 @@ Cons:
 
 How will this work, technically?
 
-Allow configuration of pieces needed for external service invocation through creation of new CRD titled `ExternalHTTPEndpoint` with following `yaml` specifications:
+Allow configuration of pieces needed for external service invocation through creation of new CRD titled `ExternalHTTPEndpoint`.
+The sample `yaml` file snippet below represents two examples:
+
+Option 1:
+Option one is HTTP specific in it's `Kind`.
+This has benefits in being obvious upfront that it supports only `http`,
+and makes it to where we do not need `spec.allowed.protocols`.
+However, it would have the drawback of needing additional CRDs in the future for supporting other protocols such as `gRPC`.
 
 ```
-        externalServiceInvocation:
-                        properties:
-                          allowed:
-                            items:
-                              description: ExternalAPIAccessSpec describes an access specification for allowing external service invocations.
-                              properties:
-                                baseUrl:
-                                  type: string
-                                headers:
-                                  items:
-                                    type: string
-                                  type: array
-                                name:
-                                  type: string
-                                protocol:
-                                  type: string
-                              required:
-                              - baseUrl
-                              - name
-                              type: object
-                            type: array
-                        type: object
+apiVersion: dapr.io/v1alpha1
+kind: ExternalHTTPEndpoint
+metadata:
+  name: externalserviceinvocation
+spec:
+  allowed:
+  - name: github
+    baseUrl: "github.com"
+    headers:
+    - "Accept-Language": "en-US"
+  metadata:
+  - name: mymetadata
+    secretKeyRef:
+      name: my-secret
+      key: mymetadataSecret
+auth:
+  secretStore: my-secretstore
+```
+
+Option 2:
+Option two is more generic,
+and seamlessly allows for expansion in the future for additional `ExternalEndpoint` feature sets.
+The drawback to this approach is it is less obvious that it only supports `http` for the first iteration,
+but would allow for more flexibility and expansion moving forward.
+This can be seen in the `spec.allowed.protocols` field.
+
+```
+apiVersion: dapr.io/v1alpha1
+kind: ExternalEndpoint
+metadata:
+  name: externalserviceinvocation
+spec:
+  allowed:
+  - name: github
+    protocol: "http"
+    baseUrl: "github.com"
+    headers:
+    - "Accept-Language": "en-US"
+  metadata:
+  - name: mymetadata
+    secretKeyRef:
+      name: my-secret
+      key: mymetadataSecret
+auth:
+  secretStore: my-secretstore
 ```
 
 Implementation for external service invocation will sit alongside the existing service invocation building block implementation with API changes to support external invocation.
@@ -151,6 +181,7 @@ Existing service invocation tracing and metrics capabilities when calling extern
 What changes or actions are required to make this proposal complete?
 
 * Code changes
+* Secret resolution
 * Tests added (e2e, unit)
 * SDK changes (if needed)
 * Documentation
