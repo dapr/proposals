@@ -121,9 +121,6 @@ they can use an external URL and  optionally overwrite fields at the time of inv
 
 ### Feature lifecycle outline
 
-* Expectations
-This feature will be enabled after Dapr v1.11 release.
-
 * Compatability guarantees
 This feature is fully compatible with the existing service invocation API.
 
