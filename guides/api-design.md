@@ -81,6 +81,29 @@ _Backwards-**compatible** changes_
 * May be proposed to _any_ API
 * Proposed changes to both the HTTP and gRPC API must be included
 
+### Progression of API version to Stable
+<!-- TODO: change this when once this issue relating to Beta is decided https://github.com/dapr/proposals/issues/13-->
+
+Currently for HTTP API, the non-stable API has the path `v1.0-alpha1` instead of stable APIs having the form `v1.0`. Similarly for gRPC, the non-stable API has the suffix `Alpha1` added to the gRPC methods.
+SDKs implementing the API before the stable release use the above mentioned paths/methods for HTTP and gRPC respectively. Once the API is promoted to stable, the SDKs must be updated to use the stable paths/methods.
+
+#### Compatibility
+
+To cater to the scenario where an older SDK is accessing a newer version of Dapr, the following compatibility rules must be followed:
+- If there are no breaking changes in the API(User request/response) from the prior version to the version it is made stable, then both the old and new paths/methods must be supported by the Dapr runtime.
+  - The `alpha` suffixed API paths/methods must be removed from the Dapr runtime once all _core_ SDKs have been updated (preferrably in the next Dapr release). Removal of the `alpha` suffixed API is still considered a breaking change and must be documented in the release notes as such.
+- If there are breaking changes in the API(User request/response) from the prior version to the version it is made stable, then only the new paths/methods must be supported by the Dapr runtime. The old paths/methods must be removed from the Dapr runtime.
+
+> Note: The components themselves might have breaking changes, that will not affect the API version progression.
+
+Example Scenario:
+Consider v3.0 of JS SDK supporting the Config API in Alpha stage and Dapr runtime v1.10. The Config API is promoted to Stable in v1.11 of the runtime. If between v1.10 Dapr and v1.11 Dapr runtime there are no breaking changes in the Config API then both Path/`v1.0-alpha1`/Method`Alpha1` and Path/`v1.0`/Method must be supported by the Dapr runtime.
+
+Then the SDK can be updated independent of the runtime i.e. v3.0 version of JS SDK will still continue to work with the v1.11 runtime Config API.
+
+If there are breaking changes in the Config API then only Path/`v1.0`/Method must be supported by the Dapr runtime. In this case, the SDKs must be updated to use the new path/methods. In this case only the newer version of the SDK will work with the newer version of the runtime.
+
+> Note: This guidance is specifically for Dapr runtime SDK compatibility. SDKs may have their own way of exposing/differentiating between Alpha and Stable APIs.
 
 ## Requirements for Building Block changes
 
@@ -101,30 +124,6 @@ Finally on addition of a new API, there may be addition of the capability to eit
   - Get sign off on a basic suite of conformance tests for the interface method(s)
   - Implement the suite of conformance tests as part of the existing suite of tests for the building block
 - Ensure successful execution of existing conformance and certification tests for any modified components
-
-
-## Progression of API version to Stable
-<!-- TODO: change this when once this issue relating to Beta is decided https://github.com/dapr/proposals/issues/13-->
-
-Currently for HTTP API, the non-stable API has the path `v1.0-alpha1` instead of stable APIs having the form `v1.0`. Similarly for gRPC, the non-stable API has the suffix `Alpha1` added to the gRPC methods.
-SDKs implementing the API before the stable release use the above mentioned paths/methods for HTTP and gRPC respectively. Once the API is promoted to stable, the SDKs must be updated to use the stable paths/methods.
-
-### Compatibility
-
-To cater to the scenario where an older SDK is accessing a newer version of Dapr, the following compatibility rules must be followed:
-- If there are no breaking changes in the API(User request/response) from the prior version to the version it is made stable, then both the old and new paths/methods must be supported by the Dapr runtime.
-- If there are breaking changes in the API(User request/response) from the prior version to the version it is made stable, then only the new paths/methods must be supported by the Dapr runtime. The old paths/methods must be removed from the Dapr runtime.
-
-> Note: The components themselves might have breaking changes, that will not affect the API version progression.
-
-Example Scenario:
-Consider v3.0 of JS SDK supporting the Config API in Alpha stage and Dapr runtime v1.10. The Config API is promoted to Stable in v1.11 of the runtime. If between v1.10 Dapr and v1.11 Dapr runtime there are no breaking changes in the Config API then both Path/`v1.0-alpha1`/Method`Alpha1` and Path/`v1.0`/Method must be supported by the Dapr runtime.
-
-Then the SDK can be updated independent of the runtime i.e. v3.0 version of JS SDK will still continue to work with the v1.11 runtime Config API.
-
-If there are breaking changes in the Config API then only Path/`v1.0`/Method must be supported by the Dapr runtime. In this case, the SDKs must be updated to use the new path/methods. In this case only the newer version of the SDK will work with the newer version of the runtime.
-
-> Note: This guidance is specifically for Dapr runtime SDK compatibility. SDKs may have their own way of exposing/differentiating between Alpha and Stable APIs.
 
 ## Progression of an API/Building block
 ### Alpha to Beta
