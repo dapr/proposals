@@ -14,7 +14,7 @@ Links to any relevant resources go here:
 
 ## Alpha / Beta / Stable
 
-For each stage, identify the expectations of this feature at that stage. For example, 
+For each stage, identify the expectations of this feature at that stage. For example,
 are there any performance issues, configuration changes or feature deprecation that will happen?
 
 * Anticipated performance / known limitations
@@ -63,15 +63,17 @@ Additionally, for **building blocks**:
 Additionally, for **building blocks**:
 
 - [ ] Conformance tests updated to match any API changes that have been made
-- [ ] Conformance tests exercise both positive and negative cases 
-- [ ] Minimum of N (three?) implementations of this building block 
-- [ ] Certification tests for implementations 
+- [ ] Conformance tests exercise both positive and negative cases
+- [ ] Minimum of N (three?) implementations of this building block
+- [ ] Certification tests for implementations
 - [ ] APIs that are used in the building block also meet Beta criteria
 
 
-## Stable 
+## Stable
 
-
+- [ ] Change API version to stable. See [Stable API Versioning](../guides/api-design.md#progression-of-api-version-to-stable)
+  - [ ] HTTP `v1.0-suffix` to `v1.0`
+  - [ ] gRPC `MethodSuffix` to `Method`
 - [ ] Documentation is complete in `dapr/docs` with any changes since Beta
 - [ ] E2E scenarios well defined and comprehensive
 - [ ] Performance tests exist and regressions will prevent them from successfully passing
