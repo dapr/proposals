@@ -99,19 +99,15 @@ metadata:
   name: "github"
 spec:
   baseUrl: "http://api.github.com"
-  authScheme: "token" # or BASIC as default
   headers:
   - name: "Accept-Language"
     value: "en-US"
   - name: "Content-Type"
     value: "application/json"
   - name: "Authorization"
-    # Option #1
     secretKeyRef:
       name: "my-secret"
       key: "mymetadataSecret"
-    # Option #2
-    #value: "base64encodedUser:base64encodedPWD" # put in header as is in this case
 auth:
   secretStore: "my-secretstore"
 ```
