@@ -160,8 +160,10 @@ N/A
 
 * Compabitility requirements
 This feature will need to be fully compatible with existing service invocation API.
-In the case that a user tries to add an `HTTPEndpoint` with the same name as an AppId in the same namespace, 
-then the `HTTPEndpoint` will fail to create as names must be unique.
+In the case that a user adds an `HTTPEndpoint` with the same name as an AppId in the same namespace and performs service invocation,
+then the `HTTPEndpoint` will be invoked.
+Calls for service invocation will first check if the AppId matches an `HTTPEndpoint` CRD,
+and in the case that it does, then external service invocation will occur.
 
 * Metrics
 Existing service invocation tracing and metrics capabilities when calling external enpoints will be fully functional.
