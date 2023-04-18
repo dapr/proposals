@@ -106,12 +106,11 @@ spec:
   - name: "Content-Type"
     value: "application/json"
   - name: "Authorization"
-    # assumed this is already base64 encoded
     # Option #1
     secretKeyRef:
       name: "my-secret"
       key: "mymetadataSecret"
-      # Option #2
+    # Option #2
     #value: "base64encodedUser:base64encodedPWD" # put in header as is in this case
 auth:
   secretStore: "my-secretstore"
