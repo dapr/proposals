@@ -117,11 +117,11 @@ auth:
 ```
 
 Noteworthy caveat:
-If `Authorization` header specified,
-then we would need validation on `authScheme` to become mandatory to know what to use for the prefix.
+If `Authorization` header is specified,
+then it is assumed that the [auth-scheme](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) prefix (ie token, basic, etc)
+is specified within the value for the `Authorization` header field.
 This allows for headers to match with the existing HTTP header schema,
 thus leading to a better user experience that is straightforward to use.
-The term `authScheme` comes from the HTTP headers syntax found [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization).
 
 Implementation for external service invocation will sit alongside the existing service invocation building block implementation with API changes to support external invocation.
 
