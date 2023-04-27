@@ -85,7 +85,7 @@ Cons:
 
 How will this work, technically?
 
-Allow configuration of pieces needed for external service invocation through creation of new CRD titled `ExternalHTTPEndpoint`.
+Allow configuration of pieces needed for external service invocation through creation of new CRD titled `HTTPEndpoint`.
 It is HTTP specific in it's `Kind`.
 This has benefits in being obvious upfront that it supports only `http`,
 and makes it to where we do not need `spec.allowed.protocols`.
@@ -94,29 +94,50 @@ The sample `yaml` file snippet below represents the proposed configuration.
 
 ```
 apiVersion: dapr.io/v1alpha1
-kind: ExternalHTTPEndpoint
+kind: HTTPEndpoint
 metadata:
-  name: externalserviceinvocation
+  name: "github"
 spec:
-  allowed:
-  - name: github
-    baseUrl: "github.com"
-    headers:
-    - "Accept-Language": "en-US"
-  metadata:
-  - name: mymetadata
+  baseUrl: "http://api.github.com"
+  headers:
+  - name: "Accept-Language"
+    value: "en-US"
+  - name: "Content-Type"
+    value: "application/json"
+  - name: "Authorization"
     secretKeyRef:
-      name: my-secret
-      key: mymetadataSecret
+      name: "my-secret"
+      key: "mymetadataSecret"
 auth:
-  secretStore: my-secretstore
+  secretStore: "my-secretstore"
 ```
+
+Noteworthy caveat:
+If `Authorization` header is specified,
+then it is assumed that the [auth-scheme](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) prefix (ie token, basic, etc)
+is specified within the value for the `Authorization` header field.
+This allows for headers to match with the existing HTTP header schema,
+thus leading to a better user experience that is straightforward to use.
 
 Implementation for external service invocation will sit alongside the existing service invocation building block implementation with API changes to support external invocation.
 
 User facing changes include overriding the URL when calling Dapr for service invocation.
 Users will use the existing service invocation API, but instead of using an app ID,
 they can use an external URL and  optionally overwrite fields at the time of invocation.
+
+To summarize, there would be two ways of working with external service invocations:
+1. The URL format programatically.
+This allows for convenience and includes a single HTTP call.
+2. HTTPEndpoint resource creation declaratively,
+where the `HTTPEndpoint.Name` would be used as the AppId in the existing service invocation URL.
+
+#### Examples
+
+1. URL format overwritten:
+`http://localhost:${daprPort}/v1.0/invoke/http://api.github.com/method/`
+
+2. HTTPEndpoint resource creation declaratively using the HTTPEndpoint resource definition above.
+`http://localhost:${daprPort}/v1.0/invoke/github/method/`
 
 
 ### Feature lifecycle outline
@@ -139,6 +160,10 @@ N/A
 
 * Compabitility requirements
 This feature will need to be fully compatible with existing service invocation API.
+In the case that a user adds an `HTTPEndpoint` with the same name as an AppId in the same namespace and performs service invocation,
+then the `HTTPEndpoint` will be invoked.
+Calls for service invocation will first check if the AppId matches an `HTTPEndpoint` CRD,
+and in the case that it does, then external service invocation will occur.
 
 * Metrics
 Existing service invocation tracing and metrics capabilities when calling external enpoints will be fully functional.
