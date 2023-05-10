@@ -2,7 +2,7 @@
 
 * Author(s): Roberto J. Rojas
 * State: Draft
-* Updated: 4/7/2023
+* Updated: 5/10/2023
 
 ## Overview
 
@@ -33,7 +33,7 @@ https://github.com/dapr/dapr/issues/6068
 
 # Design
 
-## Solution A
+## Solution
 Utilize and follow the [gRPC Richer Error Model](https://grpc.io/docs/guides/error/#richer-error-model) and [Google API Errors Model in the Design Guide](https://cloud.google.com/apis/design/errors#error_model)
 
 ### Error Code Standard
@@ -135,30 +135,30 @@ The following tables shows the propsosed error codes used in the **reason** for 
 **INIT**
 | Dapr Module | Description |
 | ----------- | ----------- |
-| CLI         | DPR_INIT_CLI_[1-1000] |
-| Self-hosted | DPR_INIT_SLF_[1-1000] |
-| K8S | DPR_INIT_K8S_[1-1000] |
-| Invoke | DPR_INIT_INV_[1-1000] |
+| CLI         | DAPR_CLI_INIT |
+| Self-hosted | DAPR_SELF_HOSTED_INIT |
+| K8S         | DAPR_K8S_INIT |
+| Invoke      | DAPR_INVOKE_INIT |
 
 **RUNTIME**
 | Dapr Module | Description |
 | ----------- | ----------- |
-| CLI         | DPR_RT_CLI_[1-1000] |
-| Self-hosted | DPR_RT_SLF_[1-1000] |
-| dapr-2-dapr(HTTP) | DPR_INIT_HTTP_[1-1000] |
-| dapr-2-dapr(gRPC) | DPR_INIT_GRPC_[1-1000] |
+| CLI         | DAPR_CLI_RUNTIME |
+| Self-hosted | DAPR_SELF_HOSTED_RUNTIME |
+| dapr-2-dapr(HTTP) | DAPR_HTTP_RUNTIME |
+| dapr-2-dapr(gRPC) | DAPR_GRPC_RUNTIME |
 
 **COMPONENTS**
 | Dapr Module | Description |
 | ----------- | ----------- |
-| PubSub              | DPR_COMP_SUB_[1-1000] |
-| StateStore          | DPR_COMP_STS_[1-1000] |
-| Bindings            | DPR_COMP_BND_[1-1000] |
-| SecretStore         | DPR_COMP_SEC_[1-1000] |
-| ConfigurationStore  | DPR_COMP_CNF_[1-1000] |
-| Lock                | DPR_COMP_LCK_[1-1000] |
-| NameResolution      | DPR_COMP_NMR_[1-1000] |
-| Middleware          | DPR_COMP_MDW_[1-1000] |
+| PubSub              | DAPR_PUBSUB_COMPONENT |
+| StateStore          | DAPR_STATE_STORE_COMPONENT |
+| Bindings            | DAPR_BINDING_COMPONENT |
+| SecretStore         | DAPR_SECRET_STORE_COMPONENT |
+| ConfigurationStore  | DAPR_CONFIGURATION_STORE_COMPONENT |
+| Lock                | DAPR_LOCK_COMPONENT |
+| NameResolution      | DAPR_NAME_RESOLUTION_COMPONENT |
+| Middleware          | DAPR_MIDDLEWARE_COMPONENT|
 
 
 
@@ -170,8 +170,8 @@ The following tables shows the propsosed error codes used in the **reason** for 
   "details": [
     {
       "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-      "reason": "DPR_COMP_STS_1",
-      "domain": "redis.state.contrib.dapr.io",
+      "reason": "DAPR_STATE_STORE_COMPONENT",
+      "domain": "dapr.io",
       "metadata": {
         "key": "myapp||name"
       }
@@ -203,7 +203,7 @@ if err != nil {
   ste := status.Newf(codes.Internal, messages.ErrStateGet, in.Key, in.StoreName, err.Error())
   ei := errdetails.ErrorInfo{
 	 Domain: "grpc.runtime.dapr.io",
-         Reason: "DPR_RT_GRPC_1",
+         Reason: "DAPR_GRPC_RUNTIME",
 	 Metadata: map[string]string{
 	       "key":       in.Key,
 	       "storeName": in.StoreName,
@@ -231,8 +231,8 @@ message DaprKitErrorInfo {
   "details": [
     {
       "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-      "reason": "DPR_COMP_STS_1",
-      "domain": "redis.state.contrib.dapr.io",
+      "reason": "DAPR_STATE_STORE_COMPONENT",
+      "domain": "dapr.io",
       "metadata": {
         "key": "myapp||name"
       }
@@ -246,8 +246,8 @@ message DaprKitErrorInfo {
     },
     {
       "@type": "type.googleapis.com/kit.proto.customerrors.v1.DaprKitErrorInfo",
-      "reason": "DPR_COMP_STS_1",
-      "domain": "redis.state.contrib.dapr.io",
+      "reason": "DAPR_STATE_STORE_COMPONENT",
+      "domain": "dapr.io",
       "metadata": {
         "key": "myapp||name"
       }
@@ -308,24 +308,6 @@ https://github.com/robertojrojas/dapr-go-sdk/tree/error-codes-poc
 https://github.com/robertojrojas/dapr-cli/tree/error-codes-poc
 
 - pkg/standalone/invoke.go
-
-
-
-## Solution B
-Create a custom Dapr Error structure and implement it within Dapr modules.
-
-One possible solution is 
-[Standardize error messages in Dapr](https://github.com/dapr/components-contrib/issues/1916)
-
-### Pros
-- No dependencies on gRPC Richer Error model.
-
-### Cons
-- Need to agree on the Error structure.
-- Probably need more code changes to be made compared to solution A.
-
-
-
 
 
 ### Feature lifecycle outline
