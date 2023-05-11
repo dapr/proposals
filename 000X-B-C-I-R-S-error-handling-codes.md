@@ -2,7 +2,7 @@
 
 * Author(s): Roberto J. Rojas
 * State: Draft
-* Updated: 5/10/2023
+* Updated: 5/11/2023
 
 ## Overview
 
@@ -90,31 +90,22 @@ message ErrorInfo {
 }
 ```
 
+### Error Status
+The properties of the **google.rpc.Status** will be populated as following:
 
-Example error:
-```json
-{
-  "error": {
-    "code": 400,
-    "message": "API key not valid. Please pass a valid API key.",
-    "status": "INVALID_ARGUMENT",
-    "details": [
-      {
-        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-        "reason": "API_KEY_INVALID",
-        "domain": "googleapis.com",
-        "metadata": {
-          "service": "translate.googleapis.com"
-        }
-      }
-    ]
-  }
-}
-```
+- **Code**  - Protocol level error code. These could be either gRPC or HTTP error codes. See (gRPC Codes ProtoBuf)[https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto]
+   
+   Example: "InvalidArgument Code = 3", "Internal Code = 13"
+
+- **Message**  - Error message.
+- **Details**  - A set of standard error payloads for error details. These list can be found in [Error Details](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)
+   
+   Example: "ErrorInfo", "ResourceInfo"
+
 
 
 Below is partial table of the Standard Error code provided by gRPC and how they map to HTTP error codes. The entire list can found in the following links:
-- [gRPC Codes Table]https://cloud.google.com/apis/design/errors#handling_errors
+- [Google API Error Handling]https://cloud.google.com/apis/design/errors#handling_errors
 - (gRPC Codes ProtoBuf)[https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto]
 
 
@@ -129,48 +120,77 @@ Below is partial table of the Standard Error code provided by gRPC and how they 
 |404  |	NOT_FOUND |	A specified resource is not found. |
 |409  |	ABORTED	| Concurrency conflict, such as read-modify-write conflict. |
 
-### Error Details Classification
-The following tables shows the propsosed error codes used in the **reason** for the **google.rpc.ErrorInfo** within the various levels of Dapr modules:
+
+### ErrorInfo
+The properties of the **type.googleapis.com/google.rpc.ErrorInfo** will be populated as following:
+
+- **Reason** - A combination of prefix from prefix of the table below plus the error condition code.
+    
+    Example: "DAPR_STATE_" + "ETAG_MISMATCH"
+
+- **Domain** - With the value `dapr.io`.
+
+- **Metadata** - A key/value map/dictionary data relevant to the error condition.
+
+### ResourceInfo
+The properties of the **type.googleapis.com/google.rpc.ResourceInfo** will be populated as following:
+
+- **ResourceType** - The building block type.
+   
+   Example: "StateStore"
+
+- **ResourceName** - The component name.
+   
+   Example: "REDIS"
+
+- **Owner**   - The owner of the component.
+
+- **Description** - Resource descrpition or error details.
+
+
+### Error Details Prefixes
+The following tables shows the propsosed error codes prefixes used in the **reason** for the **google.rpc.ErrorInfo** for various Dapr building blocks:
+
 
 **INIT**
-| Dapr Module | Description |
+| Dapr Module | Prefix |
 | ----------- | ----------- |
-| CLI         | DAPR_CLI_INIT |
-| Self-hosted | DAPR_SELF_HOSTED_INIT |
-| K8S         | DAPR_K8S_INIT |
-| Invoke      | DAPR_INVOKE_INIT |
+| CLI         | DAPR_CLI_INIT_* |
+| Self-hosted | DAPR_SELF_HOSTED_INIT_* |
+| K8S         | DAPR_K8S_INIT_* |
+| Invoke      | DAPR_INVOKE_INIT_* |
 
 **RUNTIME**
-| Dapr Module | Description |
+| Dapr Module | Prefix |
 | ----------- | ----------- |
-| CLI         | DAPR_CLI_RUNTIME |
-| Self-hosted | DAPR_SELF_HOSTED_RUNTIME |
-| dapr-2-dapr(HTTP) | DAPR_HTTP_RUNTIME |
-| dapr-2-dapr(gRPC) | DAPR_GRPC_RUNTIME |
+| CLI         | DAPR_CLI_RUNTIME_* |
+| Self-hosted | DAPR_SELF_HOSTED_RUNTIME_* |
+| dapr-2-dapr(HTTP) | DAPR_HTTP_RUNTIME_* |
+| dapr-2-dapr(gRPC) | DAPR_GRPC_RUNTIME_* |
 
 **COMPONENTS**
-| Dapr Module | Description |
+| Dapr Module | Prefix |
 | ----------- | ----------- |
-| PubSub              | DAPR_PUBSUB_COMPONENT |
-| StateStore          | DAPR_STATE_STORE_COMPONENT |
-| Bindings            | DAPR_BINDING_COMPONENT |
-| SecretStore         | DAPR_SECRET_STORE_COMPONENT |
-| ConfigurationStore  | DAPR_CONFIGURATION_STORE_COMPONENT |
-| Lock                | DAPR_LOCK_COMPONENT |
-| NameResolution      | DAPR_NAME_RESOLUTION_COMPONENT |
-| Middleware          | DAPR_MIDDLEWARE_COMPONENT|
+| PubSub              | DAPR_PUBSUB_* |
+| StateStore          | DAPR_STATE_* |
+| Bindings            | DAPR_BINDING_* |
+| SecretStore         | DAPR_SECRET_* |
+| ConfigurationStore  | DAPR_CONFIGURATION_* |
+| Lock                | DAPR_LOCK_* |
+| NameResolution      | DAPR_NAME_RESOLUTION_* |
+| Middleware          | DAPR_MIDDLEWARE_*|
 
 
+The following snippet shows an error status returned due to a `ETAG_MISMATCH` error condition. The **reason** is populated with `PREFIX+ERROR_CONDITION`:
 
-### Sample Error
 ```json
 {
-  "code": 8089,
-  "message": "unable to perform Redis.HGETALL call: dial tcp [::1]:6379: connect: connection refused",
+  "code": 3,
+  "message":  "possible etag mismatch. error from state store",
   "details": [
     {
       "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-      "reason": "DAPR_STATE_STORE_COMPONENT",
+      "reason": "DAPR_STATE_ETAG_MISMATCH",
       "domain": "dapr.io",
       "metadata": {
         "key": "myapp||name"
@@ -181,7 +201,7 @@ The following tables shows the propsosed error codes used in the **reason** for 
       "resource_type": "StateStore",
       "resource_name": "REDIS",
       "owner": "",
-      "description": "unable to perform Redis.HGETALL call: dial tcp [::1]:6379: connect: connection refused"
+      "description": "possible etag mismatch. error from state store"
     }
   ]
 }
@@ -198,63 +218,28 @@ import (
    ...
 )
 ...
-if err != nil {
+if req.ETag != nil {
   ...
-  ste := status.Newf(codes.Internal, messages.ErrStateGet, in.Key, in.StoreName, err.Error())
+  ste := status.Newf(codes.InvalidArgument, messages.ErrStateGet, in.Key, in.StoreName, err.Error())
   ei := errdetails.ErrorInfo{
-	 Domain: "grpc.runtime.dapr.io",
-         Reason: "DAPR_GRPC_RUNTIME",
-	 Metadata: map[string]string{
-	       "key":       in.Key,
-	       "storeName": in.StoreName,
-	 },
+	    Domain: "dapr.io",
+      Reason: "DAPR_STATE_ETAG_MISMATCH",
+      Metadata: map[string]string{
+            "storeName": in.StoreName,
+      },
   }
-  ste, err2 := ste.WithDetails(&ei)
+  ri := errdetails.ResourceInfo{
+      ResourceType: "StateStore",
+      ResourceName: "REDIS",
+      Owner:        "user",
+      Description:  "possible etag mismatch. error from state store",
+	}
+  ste, err2 := ste.WithDetails(&ei, &ri)
   ...
+  return ste.Err()
 }
 ```
 
-### Dapr Custom Error Info
-```go
-message DaprKitErrorInfo {
-  string reason = 1;
-  string domain = 2;
-  map<string, string> metadata = 3;
-}
-```
-
-### Example Dapr Custom Error Info
-```json
-{
-  "code": 8089,
-  "message": "unable to perform Redis.HGETALL call: dial tcp [::1]:6379: connect: connection refused",
-  "details": [
-    {
-      "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-      "reason": "DAPR_STATE_STORE_COMPONENT",
-      "domain": "dapr.io",
-      "metadata": {
-        "key": "myapp||name"
-      }
-    },
-    {
-      "@type": "type.googleapis.com/google.rpc.ResourceInfo",
-      "resource_type": "StateStore",
-      "resource_name": "REDIS",
-      "owner": "",
-      "description": "unable to perform Redis.HGETALL call: dial tcp [::1]:6379: connect: connection refused"
-    },
-    {
-      "@type": "type.googleapis.com/kit.proto.customerrors.v1.DaprKitErrorInfo",
-      "reason": "DAPR_STATE_STORE_COMPONENT",
-      "domain": "dapr.io",
-      "metadata": {
-        "key": "myapp||name"
-      }
-    }
-  ]
-}
-```
 ### Pros
 - Since the Dapr Runtime is using protocol buffers as the data format, support for the richer error model is already included in most of the gRPC implementations.
 - This would help minimize the changes with the Dapr ecosystem.
@@ -262,7 +247,7 @@ message DaprKitErrorInfo {
 
 ### Cons
 - Dependencies on gPRC richer error model.
-- Not all gRPC implementations support this out of the box, [C#/dotnet](https://learn.microsoft.com/en-us/dotnet/architecture/grpc-for-wcf-developers/error-handling#grpc-richer-error-model) being one of them, but there is a [possible solution (Google.Api.CommonProtos)](https://www.nuget.org/packages/Google.Api.CommonProtos/) to this.
+- Need to test gRPC implementations support for all Dapr SDKs.
 
 
 ## gRPC Richer Error Model POC
@@ -309,6 +294,9 @@ https://github.com/robertojrojas/dapr-cli/tree/error-codes-poc
 
 - pkg/standalone/invoke.go
 
+https://github.com/robertojrojas/dapr-dotnet-sdk/tree/error-codes-poc
+
+- src/Dapr.Client/DaprClientGrpc.cs
 
 ### Feature lifecycle outline
 
