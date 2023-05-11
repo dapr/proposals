@@ -121,7 +121,7 @@ Below is partial table of the Standard Error code provided by gRPC and how they 
 |409  |	ABORTED	| Concurrency conflict, such as read-modify-write conflict. |
 
 
-### ErrorInfo
+### ErrorInfo (Required)
 The properties of the **type.googleapis.com/google.rpc.ErrorInfo** will be populated as following:
 
 - **Reason** - A combination of prefix from prefix of the table below plus the error condition code.
@@ -132,7 +132,9 @@ The properties of the **type.googleapis.com/google.rpc.ErrorInfo** will be popul
 
 - **Metadata** - A key/value map/dictionary data relevant to the error condition.
 
-### ResourceInfo
+`**Note:**` The metadata property **isRetriable** with a truthable value("true", "false", "True", "False", "TRUE", "FALSE", "1", "0") is required. 
+
+### ResourceInfo (Optional)
 The properties of the **type.googleapis.com/google.rpc.ResourceInfo** will be populated as following:
 
 - **ResourceType** - The building block type.
