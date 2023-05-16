@@ -165,10 +165,10 @@ The following tables shows the propsosed error codes prefixes used in the **reas
 **RUNTIME**
 | Dapr Module | Prefix |
 | ----------- | ----------- |
-| CLI         | DAPR_CLI_RUNTIME_* |
-| Self-hosted | DAPR_SELF_HOSTED_RUNTIME_* |
-| dapr-2-dapr(HTTP) | DAPR_HTTP_RUNTIME_* |
-| dapr-2-dapr(gRPC) | DAPR_GRPC_RUNTIME_* |
+| CLI         | DAPR_RUNTIME_CLI_* |
+| Self-hosted | DAPR_SELF_HOSTED_* |
+| dapr-2-dapr(HTTP) | DAPR_RUNTIME_HTTP_* |
+| dapr-2-dapr(gRPC) | DAPR_RUNTIME_GRPC_* |
 
 **COMPONENTS**
 | Dapr Module | Prefix |
