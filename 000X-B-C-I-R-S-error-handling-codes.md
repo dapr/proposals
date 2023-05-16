@@ -115,8 +115,8 @@ Below is partial table of the Standard Error code provided by gRPC and how they 
 |400  |	INVALID_ARGUMENT |	Client specified an invalid argument. Check error message and error details for more information. |
 |400  |	FAILED_PRECONDITION |	Request can not be executed in the current system state, such as deleting a non-empty directory. |
 |400  |	OUT_OF_RANGE |	Client specified an invalid range. |
-|401  |	UNAUTHENTICATED	| Request not authenticated due to missing, invalid, or expired OAuth token. |
-|403  |	PERMISSION_DENIED |	Client does not have sufficient permission. This can happen because the OAuth token does not have the right scopes, the client doesn't have permission, or the API has not been enabled. |
+|401  |	UNAUTHENTICATED	| Request not authenticated due to missing, invalid, or expired authorization credentials. |
+|403  |	PERMISSION_DENIED |	Client does not have sufficient permission. |
 |404  |	NOT_FOUND |	A specified resource is not found. |
 |409  |	ABORTED	| Concurrency conflict, such as read-modify-write conflict. |
 
