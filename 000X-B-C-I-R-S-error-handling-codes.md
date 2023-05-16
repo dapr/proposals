@@ -167,7 +167,6 @@ The following tables shows the propsosed error codes prefixes used in the **reas
 | ----------- | ----------- |
 | CLI         | DAPR_RUNTIME_CLI_* |
 | Self-hosted | DAPR_SELF_HOSTED_* |
-| dapr-2-dapr(HTTP) | DAPR_RUNTIME_HTTP_* |
 | dapr-2-dapr(gRPC) | DAPR_RUNTIME_GRPC_* |
 
 **COMPONENTS**
@@ -232,7 +231,7 @@ if req.ETag != nil {
   }
   ri := errdetails.ResourceInfo{
       ResourceType: "StateStore",
-      ResourceName: "REDIS",
+      ResourceName: "state.redis/v1",
       Owner:        "user",
       Description:  "possible etag mismatch. error from state store",
 	}
