@@ -132,7 +132,7 @@ The properties of the **type.googleapis.com/google.rpc.ErrorInfo** will be popul
 
 - **Metadata** - A key/value map/dictionary data relevant to the error condition.
 
-`**Note:**` The metadata property **isRetriable** with a truthable value("true", "false", "True", "False", "TRUE", "FALSE", "1", "0") is required. 
+`**Note:**` The metadata property **retriable** with a truthable value("true", "false", "True", "False", "TRUE", "FALSE", "1", "0") is required. 
 
 ### ResourceInfo (Optional)
 The properties of the **type.googleapis.com/google.rpc.ResourceInfo** will be populated as following:
@@ -201,7 +201,7 @@ The following snippet shows an error status returned due to a `ETAG_MISMATCH` er
     {
       "@type": "type.googleapis.com/google.rpc.ResourceInfo",
       "resource_type": "StateStore",
-      "resource_name": "REDIS",
+      "resource_name": "state.redis/v1",
       "owner": "",
       "description": "possible etag mismatch. error from state store"
     }
