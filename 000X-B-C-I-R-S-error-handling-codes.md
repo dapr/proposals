@@ -137,13 +137,13 @@ The properties of the **type.googleapis.com/google.rpc.ErrorInfo** will be popul
 ### ResourceInfo (Optional)
 The properties of the **type.googleapis.com/google.rpc.ResourceInfo** will be populated as following:
 
-- **ResourceType** - The building block type.
+- **ResourceType** - The building block type with version.
    
-   Example: "StateStore"
+   Example: "state.redis/v1"
 
 - **ResourceName** - The component name.
    
-   Example: "REDIS"
+   Example: "my-component-name"
 
 - **Owner**   - The owner of the component.
 
@@ -199,8 +199,8 @@ The following snippet shows an error status returned due to a `ETAG_MISMATCH` er
     },
     {
       "@type": "type.googleapis.com/google.rpc.ResourceInfo",
-      "resource_type": "StateStore",
-      "resource_name": "state.redis/v1",
+      "resource_type": "state.redis/v1",
+      "resource_name": "my-component",
       "owner": "",
       "description": "possible etag mismatch. error from state store"
     }
@@ -230,8 +230,8 @@ if req.ETag != nil {
       },
   }
   ri := errdetails.ResourceInfo{
-      ResourceType: "StateStore",
-      ResourceName: "state.redis/v1",
+      ResourceType: "state.redis/v1",
+      ResourceName: "my-redis-component",
       Owner:        "user",
       Description:  "possible etag mismatch. error from state store",
 	}
