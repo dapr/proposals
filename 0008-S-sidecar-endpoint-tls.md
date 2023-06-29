@@ -72,7 +72,7 @@ Cons:
 * Port is parsed from the URL (`https://dapr.mycompany.com:8080`) or via the default port of the protocol used in the URL (80 for `http` and 443 for `https`)
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` can be set at the same time since some SDKs (Java, as of now) supports both protocols at the same time and app can pick which one to use.
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` must be parsed and the protocol will be used for SDK to determine if communication is over TLS (if not done automatically). In summary, `https` means secure channel.
-* Initially, only `http` and `https` protocols should be supported. Future protocols can be added in the future depending on each language support.
+* Initially, only `http` and `https` protocols should be supported. Other protocols can be added in the future depending on each language support.
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` have priority over existing `DAPR_HOST` and `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT` environment variables. Application's hardcoded values passed via constructor takes priority over any environment variable. In summary, this is the priority list (highest on top):
   1. Values passed via constructor or builder method.
   2. `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT`
