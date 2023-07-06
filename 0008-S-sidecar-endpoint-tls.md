@@ -75,8 +75,9 @@ Cons:
 * Initially, only `http` and `https` protocols should be supported. Other protocols can be added in the future depending on each language support.
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` have priority over existing `DAPR_HOST` and `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT` environment variables. Application's hardcoded values passed via constructor takes priority over any environment variable. In summary, this is the priority list (highest on top):
   1. Values passed via constructor or builder method.
-  2. `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT`
-  3. Existing `DAPR_HOST` (or equivalent, defaulting to `127.0.0.1`) + `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT`
+  2. Properties or any other language specific configuration framework.
+  3. `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT`
+  4. Existing `DAPR_HOST` (or equivalent, defaulting to `127.0.0.1`) + `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT`
 
 #### Example of implementation
 
