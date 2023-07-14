@@ -56,6 +56,7 @@ Additionally, for **building blocks**:
    - [ ] Go
    - [ ] Java
    - [ ] .NET
+   - [ ] JavaScript
 - [ ] Documentation up-to-date with any new changes since Alpha
 - [ ] Quickstarts have been created
 - [ ] Performance tests exist but do not block builds
