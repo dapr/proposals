@@ -66,11 +66,16 @@ Cons:
 ### Design
 
 * `DAPR_API_MAX_RETRIES` defines the maximum number of retries, SDKs can determine which strategy will be implemented (linear, exponential backoff, etc). `0` is the default value and means no retry (same for negative values).
-* `DAPR_API_TIMEOUT_SECONDS` defines the maximum waiting time to connect and receive a response for an HTTP or gRPC call. Defaults to `10`. `0` (or negative) are invalid values and it will default to `10` - warning to be printed in that case. This setting is the timeout for each API invocation and not the timeout of the aggregated time for retries. This setting can be used without retries.
+* `DAPR_API_TIMEOUT_SECONDS` defines the maximum waiting time to connect and receive a response for an HTTP or gRPC call. Defaults to `0`. `0` (or negative) are handled as "undefined" and calls might hang forever on the client side. This setting is the timeout for each API invocation and not the timeout of the aggregated time for retries. This setting can be used without retries.
+* All environment variables can be overwritten via parameters to the Dapr client or at a per-request basis, in the following order (higher priority on top):
+  1. Per-request parameter
+  2. Parameter when instantiating a Dapr client object
+  3. Properties or any other language specific configuration framework.
+  4. Environment variables
 * SDK to retry if error is on connection.
 * SDK to retry in case of the following retriable codes:
   * gRPC: DEADLINE_EXCEEDED, UNAVAILABLE.
-  * HTTP: 408, 429, 500, 502, 503, 504
+  * HTTP: 408, 429 (respect `Retry-After` header), 500, 502, 503, 504
 * The same client should still be usable if the API goes down but is restored after any arbitrary amount of time. In other words, the unavailability of the Dapr API should not require the application to restart.
 
 #### Example of implementation
@@ -80,13 +85,13 @@ https://github.com/dapr/java-sdk/pull/889
 ### Feature lifecycle outline
 
 * Compatability guarantees
-Retries should be disabled by default. Timeouts, on the other hand, should be enforced with the default value.
+Retries and timeouts should be disabled by default.
 
 * Deprecation / co-existence with existing functionality
 If customers prefer to have a more fine tuned resiliency logic, they can still achieve so by disabling the SDK resiliency and use a 3rd party library to handle retries with custom logic.
 
 * Feature flags
-Retries are disabled by default with the value `0`.
+Retries and timeouts are disabled by default with the value `0`.
 
 ### Acceptance Criteria
 
@@ -108,6 +113,8 @@ What changes or actions are required to make this proposal complete?
 
 * SDK changes
   * Add support for new environment variable
+  * Add new parameters when instantiating a new Dapr client
+  * Add per-request optional parameters
   * Add integration testing on each SDK when possible (can use ToxiProxy)
 * Compatibility tests
   * Implement a compatibility test in runtime (similar to what was done for actor invocation)
