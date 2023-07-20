@@ -43,14 +43,16 @@ List only failed or those componnets for which Ping is not implemented. Create s
 HTTP Endpoint: http://localhost:3500/v1.0/healthz?components=true
 GRPC Endpoint: GetComponentHealthAlpha1 (It will be separate endpoint for grpc)
 
-**Case 1:** When ALL components in system implement Ping and are Healthy
+#### Case 1:
+    When ALL components in system implement Ping and are Healthy
 
 Result:
 
 Response code: 204 OK No Content
 GRPC Response code (if implemented): 0 OK
 
-**Case 2:** When ALL components in system implement Ping BUT some components have failed Ping check: Here we report only failed components and not passed components, we don't treat this API as a way to list components.
+#### Case 2:
+    When ALL components in system implement Ping BUT some components have failed Ping check: Here we report only failed components and not passed components, we don't treat this API as a way to list components.
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -74,7 +76,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
         ]
 }
 ```
-**Case 3:** When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well: Here we report failed components and those components as well for which Ping is not implemented, we don't treat this API as a way to list components.
+#### Case 3:
+    When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well: Here we report failed components and those components as well for which Ping is not implemented, we don't treat this API as a way to list components.
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -109,7 +112,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
 }
 ```
 
-**Case 4:** When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
+#### Case 4 
+    When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
 
 HTTP Response code: 405 Method Not Allowed
 GRPC Response code (if implemented): 12 UNIMPLEMENTED
@@ -137,7 +141,8 @@ GRPC Response code (if implemented): 12 UNIMPLEMENTED
         ]
 }
 ```
-**Case 5:** When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy: Here we report only those components for which Ping is not implemented.
+#### Case 5 
+    When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy: Here we report only those components for which Ping is not implemented.
 
 HTTP Response code: 200 OK
 GRPC Response code (if implemented): 0 OK
@@ -158,11 +163,11 @@ GRPC Response code (if implemented): 0 OK
 }
 ```
 
-**Pros of this Approach:**
+#### Pros of this Approach
 1. Only required components (failed or Ping not implemented) are listed in result.
 
 
-**Cons of this Approach:**
+#### Cons of this Approach
 1. Different umbrellas for "Failed Components" and "Ping Not Implemented" - doesn't give a consistent view and may require very custom parsing logic, if users have some downstream system to listen to this heartbeat.
 
 ### Approach 2:
@@ -170,7 +175,8 @@ Instead of listing under umbrellas, like "Failed components" or "Ping Not Implem
 
 HTTP Endpoint: http://localhost:3500/v1.0/healthz?components=true
 GRPC Endpoint: GetComponentHealthAlpha1 (It will be separate endpoint for grpc)
-**Case 1:** When ALL components in system implement Ping and are Healthy
+#### Case 1 
+    When ALL components in system implement Ping and are Healthy
 
 Result:
 
@@ -192,7 +198,8 @@ GRPC Response code (if implemented): 0 OK
 }
 ```
 
-**Case 2:** When ALL components in system implement Ping BUT some/all components have failed Ping check:
+#### Case 2 
+    When ALL components in system implement Ping BUT some/all components have failed Ping check:
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -224,7 +231,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
         }
 }
 ```
-**Case 3:** When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well:
+#### Case 3 
+    When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well:
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -258,7 +266,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
 }
 ```
 
-**Case 4:** When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
+#### Case 4 
+    When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
 
 HTTP Response code: 405 Method Not Allowed
 GRPC Response code (if implemented): 12 UNIMPLEMENTED
@@ -292,7 +301,8 @@ GRPC Response code (if implemented): 12 UNIMPLEMENTED
         }
 }
 ```
-**Case 5:** When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy:
+#### Case 5 
+    When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy:
 
 HTTP Response code: 200 OK
 GRPC Response code (if implemented): 0 OK
@@ -324,11 +334,11 @@ GRPC Response code (if implemented): 0 OK
         }
 }
 ```
-**Pros of this Approach:**
+#### Pros of this Approach
 1. Consistent view of result.
 
 
-**Cons of this Approach:**
+#### Cons of this Approach
 1. May look repetitive, and user may need to search specifically for failed components, when components used  list would be huge.
 
 ### Approach 3:
@@ -336,14 +346,16 @@ Don't list under umbrellas, like "Failed components" or "Ping Not Implemented", 
 
 HTTP Endpoint: http://localhost:3500/v1.0/healthz?components=true
 GRPC Endpoint: GetComponentHealthAlpha1 (It will be separate endpoint for grpc)
-**Case 1:** When ALL components in system implement Ping and are Healthy
+#### Case 1 
+    When ALL components in system implement Ping and are Healthy
 
 Result:
 
 Response code: 204 OK No Content
 GRPC Response code (if implemented): 0 OK
 
-**Case 2:** When ALL components in system implement Ping BUT some/all components have failed Ping check: Report only failed components:
+#### Case 2 
+    When ALL components in system implement Ping BUT some/all components have failed Ping check: Report only failed components:
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -365,7 +377,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
         }
 }
 ```
-**Case 3:** When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well: Report Failed and Ping Not IMplemented components:
+#### Case 3 
+    When SOME components in system implement Ping AND some components DON'T implement Ping, AND some components have failed Ping check as well: Report Failed and Ping Not IMplemented components:
 
 HTTP Response code: 500 Internal Server Error
 GRPC Response code (if implemented): 2 UNKNOWN
@@ -394,7 +407,8 @@ GRPC Response code (if implemented): 2 UNKNOWN
 }
 ```
 
-**Case 4:** When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
+#### Case 4 
+    When ANY component in system DOES NOT implement Ping: Here we report ALL those components for which Ping is not implemented.
 
 HTTP Response code: 405 Method Not Allowed
 GRPC Response code (if implemented): 12 UNIMPLEMENTED
@@ -428,7 +442,8 @@ GRPC Response code (if implemented): 12 UNIMPLEMENTED
         }
 }
 ```
-**Case 5:** When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy:
+#### Case 5 
+    When SOME components in system implement Ping and whatever Compoenents implement Ping are Healthy:
 
 HTTP Response code: 200 OK
 GRPC Response code (if implemented): 0 OK
@@ -450,11 +465,11 @@ GRPC Response code (if implemented): 0 OK
         }
 }
 ```
-**Pros of this Approach:**
+#### Pros of this Approach
 1. Consistent view of result and only Required components are listed.
 
 
-**Cons of this Approach:**
+#### Cons of this Approach
 1. May look repetitive for Failed and Ping Not implemented components, and user may need to search specifically for failed components, when components list for "Ping Not Implemented" would be huge.
 
 ### Approach XYZ:
