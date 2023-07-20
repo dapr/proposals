@@ -38,7 +38,7 @@ If dapr is NOT healthy, then the compoenents Health check should anyways NOT be 
 
 
 ### Approach 1:
-List only failed or tose componnets for which Ping is not implemented. Create separate sections for "Failed" and "Ping Not Implemented".
+List only failed or those componnets for which Ping is not implemented. Create separate sections for "Failed" and "Ping Not Implemented".
 
 HTTP Endpoint: http://localhost:3500/v1.0/healthz?components=true
 GRPC Endpoint: GetComponentHealthAlpha1 (It will be separate endpoint for grpc)
@@ -471,6 +471,12 @@ Should we support query for a partular component Health check?
 I don't think that is required specifically, as of now.
 It is more about overall health of the system.
 
+### What Building Blocks will be covered with this approach:
+- State
+- Pubsub
+- Bindings
+- Secrets
+- Configuration Store
 
 ## Open Questions
 1. Is it only for kubernetes users? Is it only needed for http endpoint? Or we should cover gRPC endpoint as well?
