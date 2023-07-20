@@ -64,13 +64,11 @@ GRPC Response code (if implemented): 2 UNKNOWN
             {
                 "componentName": "txnstore",
                 "type": "state",
-                "status": "NOT_OK",
                 "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
             },
             {
                 "componentName": "smsbinding",
                 "type": "bindings",
-                "status": "NOT OK",
                 "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
             }
         ]
@@ -89,13 +87,11 @@ GRPC Response code (if implemented): 2 UNKNOWN
             {
                 "componentName": "txnstore",
                 "type": "state",
-                "status": "NOT_OK",
                 "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
             },
             {
                 "componentName": "smsbinding",
                 "type": "bindings",
-                "status": "NOT OK",
                 "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
             }
         ],
@@ -210,13 +206,15 @@ GRPC Response code (if implemented): 2 UNKNOWN
         {
             "componentName": "txnstore",
             "type": "state",
-            "status": "NOT_OK",
+            "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
             "componentName": "smsbinding",
             "type": "bindings",
             "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
@@ -243,13 +241,15 @@ GRPC Response code (if implemented): 2 UNKNOWN
         {
             "componentName": "txnstore",
             "type": "state",
-            "status": "NOT_OK",
+            "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
             "componentName": "smsbinding",
             "type": "bindings",
             "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
@@ -366,13 +366,15 @@ GRPC Response code (if implemented): 2 UNKNOWN
         {
             "componentName": "txnstore",
             "type": "state",
-            "status": "NOT_OK",
+            "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
             "componentName": "smsbinding",
             "type": "bindings",
             "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         }
 }
@@ -389,13 +391,15 @@ GRPC Response code (if implemented): 2 UNKNOWN
         {
             "componentName": "txnstore",
             "type": "state",
-            "status": "NOT_OK",
+            "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
             "componentName": "smsbinding",
             "type": "bindings",
             "status": "NOT OK",
+            "errorCode": "ERR_HEALTH_NOT_OK",
             "message": "redis binding: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
         },
         {
