@@ -471,7 +471,7 @@ Should we support query for a partular component Health check?
 I don't think that is required specifically, as of now.
 It is more about overall health of the system.
 
-### What Building Blocks will be covered with this approach:
+### What Building Blocks will be covered in 1.12 ?
 - State
 - Pubsub
 - Bindings
