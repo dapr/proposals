@@ -48,4 +48,4 @@ The result i.e. `healthCheckStatus` and `errorCode`/`message`, if required will 
 
 - To implement only http endpoint, at least for the first version of this API.
 
-- This endpoint is not supposed to support query for a partular component Health check.
+- This endpoint is not supposed to support query for a particular component Health check.
