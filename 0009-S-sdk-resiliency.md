@@ -65,7 +65,7 @@ Cons:
 
 ### Design
 
-* `DAPR_API_MAX_RETRIES` defines the maximum number of retries, SDKs can determine which strategy will be implemented (linear, exponential backoff, etc). `0` is the default value and means no retry (same for negative values).
+* `DAPR_API_MAX_RETRIES` defines the maximum number of retries, SDKs can determine which strategy will be implemented (linear, exponential backoff, etc). `0` is the default value and means no retry. `-1` or any negative value means infinite retries.
 * `DAPR_API_TIMEOUT_SECONDS` defines the maximum waiting time to connect and receive a response for an HTTP or gRPC call. Defaults to `0`. `0` (or negative) are handled as "undefined" and calls might hang forever on the client side. This setting is the timeout for each API invocation and not the timeout of the aggregated time for retries. This setting can be used without retries.
 * All environment variables can be overwritten via parameters to the Dapr client or at a per-request basis, in the following order (higher priority on top):
   1. Per-request parameter
