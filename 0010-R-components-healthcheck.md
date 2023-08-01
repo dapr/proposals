@@ -5,7 +5,7 @@
 * Updated: 07/20/2023
 
 ## Overview
-As a user, I should be able to enquire the health of dapr system, which is possible currently - but this health check should also include health of connected dapr components as well.
+As a user, I should be able to enquire the health of dapr system, which is possible currently - but this health check should also optionally include health of connected dapr components as well.
 
 ## Tenets
 1. It should be extensible i.e. tomorrow if any feature to check health of Actors etc. is required, it should not require a new endpoint.
@@ -15,6 +15,16 @@ There are many components in Dapr which don't yet implement Ping.
 Ping is not mandatory to be implemented by Components, which is the correct behavior, as it could lead to false positives.
 For this components health-check, components not implementing Ping will be omitted out.
 
+## Use-Case
+If a mandatory* component fails at the start-up, Dapr will terminate or will move to some non-workable state like CrashLoopBackoff etc., so `healthz` API or any other API can't be used.
+
+After Dapr has started, if any Mandatory component fails, this healthcheck can be used to determine what component has failed and accordingly some steps acam be undertaken.
+
+If an Optional component fails, either at start-up or afterwards, it can help indicate to App/down-stream user system that what component has failed.
+
+![App Usecase](./resources/0010-R-components-healthcheck/comp_Healthcheck.jpg)
+
+Note *: A mandatory component is one which does NOT have proprty `spec.ignoreErrors` set to True.
 ## API Design
 ### Endpoint:
 Instead of an additional endpoint, the Approach underneath works with a query parameter, in addition to `healthz` endpoint.
@@ -27,19 +37,20 @@ Following are the possible responses for `healthz` API:
 | 500     | dapr is not healthy     | 
 
 Hence, if dapr is healthy, then the response code changes, as per the enlisted cases below.
-If dapr is NOT healthy, then the compoenents Health check should anyways NOT be checked.
+If dapr is NOT healthy, then the components Health check should anyways NOT be checked.
 
 http://localhost:3500/v1.0/healthz?include_components=true
 
 ### Approach: 
-- Maintain a cache with status of all components loaded successfully and keep updating this cache in a background go routine at a configurable `pingUpdateFrequency`. By default, `pingUpdateFrequency` to be 5 minutes.
+- Maintain a cache with status of all components loaded successfully and keep updating this cache in a background go routine at a configurable `pingUpdateFrequency`. By default, `pingUpdateFrequency` to be 30 seconds.
+If a component is marked un-healthy in cache currently, then `pingUpdateFrequency` to work as given `pingUpdateFrequency` / 3. i.e. In a default case, it would update every 10 seconds.
 
-- This cache will not start to be built, right at the boot of daprd sidecar. There will be flag (let's say `collectPings`), which will be `false` at the beginning of the daprd sidecar and which will be turned `true`, once all the components are ready.
+- This cache will not start to be built, right at the boot of daprd sidecar. There will be an internal flag (let's say `collectPings`), which will be `false` at the beginning of the daprd sidecar and which will be turned `true`, once all the components are ready.
 Once, `collectPings` is `true`, the cache will start to be populated.
 
 - But, what happens if a component fails to initialize? 
 If a mandatory component fails to initialize, then daprd will not come up healthy and thus, anyways health check will report unhealthy.
-If an optional component fails to initialize OR if it is not healthy afterwards as well, then it is governed by a query parameter `ignoreOptionalComponent`, which is `true` by default. So, as the name suggests, if this query param is not set to `false`, then optional components failure to initialize OR failure to report healthy will not result in a un-healthy status. Rather, the http status code 207 will be reported back.
+If an optional component fails to initialize OR if it is not healthy afterwards as well, then it is governed by a query parameter `ignore_optional_component`, which is `true` by default. So, as the name suggests, if this query param is not set to `false`, then optional components failure to initialize OR failure to report healthy will not result in a un-healthy status. Rather, the http status code 207 will be reported back.
 
 - For components which don't yet implement Ping, they will be ignored for their health check.
 
