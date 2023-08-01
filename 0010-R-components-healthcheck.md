@@ -25,6 +25,7 @@ If an Optional component fails, either at start-up or afterwards, it can help in
 ![App Usecase](./resources/0010-R-components-healthcheck/comp_Healthcheck.jpg)
 
 Note *: A mandatory component is one which does NOT have proprty `spec.ignoreErrors` set to True.
+
 ## API Design
 ### Endpoint:
 Instead of an additional endpoint, the Approach underneath works with a query parameter, in addition to `healthz` endpoint.
@@ -45,12 +46,17 @@ http://localhost:3500/v1.0/healthz?include_components=true
 - Maintain a cache with status of all components loaded successfully and keep updating this cache in a background go routine at a configurable `pingUpdateFrequency`. By default, `pingUpdateFrequency` to be 30 seconds.
 If a component is marked un-healthy in cache currently, then `pingUpdateFrequency` to work as given `pingUpdateFrequency` / 3. i.e. In a default case, it would update every 10 seconds.
 
-- This cache will not start to be built, right at the boot of daprd sidecar. There will be an internal flag (let's say `collectPings`), which will be `false` at the beginning of the daprd sidecar and which will be turned `true`, once all the components are ready.
+- This cache will not start to be built, right at the boot of daprd sidecar. There will be an internal flag (let's say `collectPings`), which will be `false` at the beginning of the daprd sidecar and which will be turned `true`, once all the mandatory components are ready.
 Once, `collectPings` is `true`, the cache will start to be populated.
 
 - But, what happens if a component fails to initialize? 
-If a mandatory component fails to initialize, then daprd will not come up healthy and thus, anyways health check will report unhealthy.
+If a mandatory component fails to initialize, then daprd will not come up healthy and will eventually terminate Or be in an inconsistent state like CrashLoopBackoff.
 If an optional component fails to initialize OR if it is not healthy afterwards as well, then it is governed by a query parameter `ignore_optional_component`, which is `true` by default. So, as the name suggests, if this query param is not set to `false`, then optional components failure to initialize OR failure to report healthy will not result in a un-healthy status. Rather, the http status code 207 will be reported back.
+
+Working:
+
+![Internal Working](./resources/0010-R-components-healthcheck/comp_hcheck_working.jpeg)
+
 
 - For components which don't yet implement Ping, they will be ignored for their health check.
 
