@@ -61,7 +61,47 @@ Working:
 - For components which don't yet implement Ping, they will be ignored for their health check.
 
 - Response of healthz endpoint will be always only a http status code.
-The result i.e. `healthCheckStatus` and `errorCode`/`message`, if required will be provided as part of `metadata` API. This is done, as dapr healthz endpoint is publicly accessible, so for security constraints, it doesn't deem good to provide component names etc. as a response of `healthz` endpoint.
+If App/user wants to enquire about detailed json kind of result, per component - metadata API can be used for this.
+This is done, as dapr healthz endpoint is publicly accessible, so for security constraints, it doesn't deem good to provide component names etc. as a response of `healthz` endpoint.
+The result i.e. `status` of healthCheck and `errorCode`/`message`, will be provided as part of `metadata` API.
+
+Currently, this is how metadata response body looks like:
+![Metadata](./resources/0010-R-components-healthcheck/metadata_current.jpg)
+
+If metadata endpoint is queried with a query parameter `components_health` set to true, it will include following:
+- Example For a healthy component:
+```
+	{
+      "name": "txnstore",
+      "type": "state.redis",
+	  "version": "v1",
+	  "capabilities": [
+        "ETAG",
+        "TRANSACTIONAL",
+        "QUERY_API",
+        "ACTOR"
+      ],
+      "status": "OK"
+    }
+```
+- Example for an un-healthy component:
+```
+	{
+      "name": "txnstore",
+      "type": "state.redis",
+	  "version": "v1",
+	  "capabilities": [
+        "ETAG",
+        "TRANSACTIONAL",
+        "QUERY_API",
+        "ACTOR"
+      ],
+      "status": "NOT_OK",
+      "errorMessage": "redis store: error connecting to redis at localhost:6379: dial tcp 127.0.0.1:6379: connect: connection refused"
+    }
+```
+- For a componnet not implementing `Ping`, `status` will not be included.
+
 
 - To implement only http endpoint, at least for the first version of this API.
 
