@@ -18,7 +18,7 @@ For this components health-check, components not implementing Ping will be omitt
 ## Use-Case
 If a mandatory* component fails at the start-up, Dapr will terminate or will move to some non-workable state like CrashLoopBackoff etc., so `healthz` API or any other API can't be used.
 
-After Dapr has started, if any Mandatory component fails, this healthcheck can be used to determine what component has failed and accordingly some steps acam be undertaken.
+After Dapr has started, if any Mandatory component fails, this healthcheck can be used to determine what component has failed and accordingly some steps can be undertaken.
 
 If an Optional component fails, either at start-up or afterwards, it can help indicate to App/down-stream user system that what component has failed.
 
