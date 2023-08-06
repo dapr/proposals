@@ -2,7 +2,7 @@
 
 * Author(s): Artur Souza (@artursouza)
 * State: Ready for Implementation
-* Updated: 07/14/2023
+* Updated: 08/06/2023
 
 ## Overview
 
@@ -66,12 +66,11 @@ Cons:
 ### Design
 
 * `DAPR_API_MAX_RETRIES` defines the maximum number of retries, SDKs can determine which strategy will be implemented (linear, exponential backoff, etc). `0` is the default value and means no retry. `-1` or any negative value means infinite retries.
-* `DAPR_API_TIMEOUT_SECONDS` defines the maximum waiting time to connect and receive a response for an HTTP or gRPC call. Defaults to `0`. `0` (or negative) are handled as "undefined" and calls might hang forever on the client side. This setting is the timeout for each API invocation and not the timeout of the aggregated time for retries. This setting can be used without retries.
+* `DAPR_API_TIMEOUT_MILLISECONDS` defines the maximum waiting time to connect and receive a response for an HTTP or gRPC call. Defaults to `0`. `0` (or negative) are handled as "undefined" and calls might hang forever on the client side. This setting is the timeout for each API invocation and not the timeout of the aggregated time for retries. This setting can be used without retries.
 * All environment variables can be overwritten via parameters to the Dapr client or at a per-request basis, in the following order (higher priority on top):
-  1. Per-request parameter
-  2. Parameter when instantiating a Dapr client object
-  3. Properties or any other language specific configuration framework.
-  4. Environment variables
+  1. Parameter when instantiating a Dapr client object
+  2. Properties or any other language specific configuration framework.
+  3. Environment variables
 * SDK to retry if error is on connection.
 * SDK to retry in case of the following retriable codes:
   * gRPC: DEADLINE_EXCEEDED, UNAVAILABLE.
@@ -114,7 +113,6 @@ What changes or actions are required to make this proposal complete?
 * SDK changes
   * Add support for new environment variable
   * Add new parameters when instantiating a new Dapr client
-  * Add per-request optional parameters
   * Add integration testing on each SDK when possible (can use ToxiProxy)
 * Compatibility tests
   * Implement a compatibility test in runtime (similar to what was done for actor invocation)
