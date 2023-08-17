@@ -146,7 +146,7 @@ For **building blocks** to progress, the following criteria are required:
 
 In addition to the requirements for a Beta API, the following requirements must be met so that the API can graduate to Stable. Similar to the previous phase change, this API must have been in the Beta phase for at least one full release _without any breaking changes_. In addition, the following criteria apply:
 
-* Change API version based on the [API version progression guidelines](#progression-of-api-version-to-stable)
+* Change API version based on the [API version progression guidelines](#progression-of-api-lifecycle-to-stable)
 * E2E scenarios must be well defined and comprehensive
 * Performance tests must be added(in case a new building block does not have performance tests in the Alpha/Beta stage)/updated
 * Expected performance data must be added to documentation
