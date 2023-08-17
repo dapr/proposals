@@ -81,29 +81,24 @@ _Backwards-**compatible** changes_
 * May be proposed to _any_ API
 * Proposed changes to both the HTTP and gRPC API must be included
 
-### Progression of API version to Stable
-<!-- TODO: change this when once this issue relating to Beta is decided https://github.com/dapr/proposals/issues/13-->
+### Progression of API lifecycle to Stable
 
-Currently for HTTP API, the non-stable API has the path `v1.0-alpha1` instead of stable APIs having the form `v1.0`. Similarly for gRPC, the non-stable API has the suffix `Alpha1` added to the gRPC methods.
-SDKs implementing the API before the stable release use the above mentioned paths/methods for HTTP and gRPC respectively. Once the API is promoted to stable, the SDKs must be updated to use the stable paths/methods.
+Currently for HTTP API, the alpha API has the path `v1.0-alpha1` and the beta API must have the path `v1.0-beta1` and the stable APIs must have the form `v1.0`. Similarly for gRPC, the alpha and beta APIs must have the suffix `Alpha1` or `Beta1` added to the gRPC methods.
+SDKs implementing the API before the stable release use the above mentioned paths/methods for HTTP and gRPC respectively. Once the API is promoted to stable, the SDKs must be updated to use the stable paths/methods as soon as possible.
 
 #### Compatibility
 
-To cater to the scenario where an older SDK is accessing a newer version of Dapr, the following compatibility rules must be followed:
-- If there are no breaking changes in the API(User request/response) from the prior version to the version it is made stable, then both the old and new paths/methods must be supported by the Dapr runtime.
-  - The `alpha` suffixed API paths/methods must be removed from the Dapr runtime once all _core_ SDKs have been updated (preferrably in the next Dapr release). Removal of the `alpha` suffixed API is still considered a breaking change and must be documented in the release notes as such.
-- If there are breaking changes in the API(User request/response) from the prior version to the version it is made stable, then only the new paths/methods must be supported by the Dapr runtime. The old paths/methods must be removed from the Dapr runtime.
+For `alpha` to `beta` or `alpha` to `stable` or `beta` to `stable` progressions, the following rules must be followed:
+- Once an API has progressed to "higher" stage be it `beta` or `stable` from `alpha`, the prior API endpoints (HTTP/gRPC) must be still supported together with the newer stage (`beta` or `stable`) API endpoints in Dapr runtime for atleast 1 release to give SDKs enough time to update to the new API endpoints. Functionality wise, there may be breaking changes between a API stage transitions, but both the prior API endpoint and the newer endpoint must point to the same same functionality once it has graduated to a particular stage.
 
-> Note: The components themselves might have breaking changes, that will not affect the API version progression.
+> Note: The components themselves might have breaking changes, that will not affect the API-SDK compatibility.
 
 Example Scenario:
-Consider v3.0 of JS SDK supporting the Config API in Alpha stage and Dapr runtime v1.10. The Config API is promoted to Stable in v1.11 of the runtime. If between v1.10 Dapr and v1.11 Dapr runtime there are no breaking changes in the Config API then both Path/`v1.0-alpha1`/Method`Alpha1` and Path/`v1.0`/Method must be supported by the Dapr runtime.
+Consider v3.0 of JS SDK supporting the Config API in Alpha stage and Dapr runtime v1.10. The Config API is promoted to Stable in v1.11 of the runtime. In this case both path `/v1.0-alpha1`, method`Alpha1` and path `/v1.0`, ,method without suffix must be supported by the Dapr runtime.
 
 Then the SDK can be updated independent of the runtime i.e. v3.0 version of JS SDK will still continue to work with the v1.11 runtime Config API.
 
-If there are breaking changes in the Config API then only Path/`v1.0`/Method must be supported by the Dapr runtime. In this case, the SDKs must be updated to use the new path/methods. In this case only the newer version of the SDK will work with the newer version of the runtime.
-
-> Note: This guidance is specifically for Dapr runtime SDK compatibility. SDKs may have their own way of exposing/differentiating between Alpha and Stable APIs.
+> Note: This guidance is specifically for Dapr runtime API-SDK compatibility. SDKs may have their own way of exposing/differentiating between Alpha and Stable APIs.
 
 ## Requirements for Building Block changes
 
