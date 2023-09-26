@@ -79,6 +79,19 @@ Cons:
   3. `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT`
   4. Existing `DAPR_HOST` (or equivalent, defaulting to `127.0.0.1`) + `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT`
 
+`DAPR_GRPC_ENDPOINT` host port parsing example:
+
+```
+myhost => port=443 tls=true resolver=dns
+myhost?tls=false => port=443 tls=false resolver=dns
+myhost:443 => port=443 tls=true resolver=dns
+myhost:1003 => port=1003 tls=false resolver=dns
+myhost:1003?tls=true => port=1003 tls=true resolver=dns
+dns://myhost:1003?tls=true => port=1003 tls=true resolver=dns
+unix://my.sock => port=<no concept of port> tls=false resolver=unix
+unix://my.sock?tls=true => port=<no concept of port> tls=true resolver=unix
+```
+
 #### Example of implementation
 
 https://github.com/dapr/java-sdk/blob/76aec01e9aa4af7a72b910d77685ddd3f0bf86f3/sdk/src/main/java/io/dapr/client/DaprClientBuilder.java#L172C3-L192
