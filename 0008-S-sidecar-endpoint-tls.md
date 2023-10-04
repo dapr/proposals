@@ -72,7 +72,7 @@ Cons:
 * Port is parsed from the hostport string (`dapr.mycompany.com:8080`) or via the default port of the protocol used in the URL (80 for `plaintext` and 443 for `TLS`)
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` can be set at the same time since some SDKs (Java, as of now) supports both protocols at the same time and app can pick which one to use.
 * `DAPR_HTTP_ENDPOINT` must be parsed and the protocol will be used by SDK to determine if communication is over TLS (if not done automatically). In summary, `https` means secure channel.
-* `DAPR_GRPC_ENDPOINT` must be parsed and the query parameter will be used to determine whether the endpoint uses TLS. In summary, `?tls=true` means to use TLS. An empty query parameter defaults TLS based on port (`TLS` when port is 443, `plaintext` otherwise). SDKs should error on unrecognised or invalid query parameters.
+* `DAPR_GRPC_ENDPOINT` must be parsed and the query parameter will be used to determine whether the endpoint uses TLS. In summary, `?tls=true` means to use TLS. An empty query parameter defaults TLS to false. SDKs should error on unrecognised or invalid query parameters.
 * `DAPR_GRPC_ENDPOINT` and `DAPR_HTTP_ENDPOINT` have priority over existing `DAPR_HOST` and `DAPR_HTTP_PORT` or `DAPR_GRPC_PORT` environment variables. Application's hardcoded values passed via constructor takes priority over any environment variable. In summary, this is the priority list (highest on top):
   1. Values passed via constructor or builder method.
   2. Properties or any other language specific configuration framework.
@@ -82,9 +82,9 @@ Cons:
 `DAPR_GRPC_ENDPOINT` host port parsing example:
 
 ```
-myhost => port=443 tls=true resolver=dns
+myhost => port=443 tls=false resolver=dns
 myhost?tls=false => port=443 tls=false resolver=dns
-myhost:443 => port=443 tls=true resolver=dns
+myhost:443 => port=443 tls=false resolver=dns
 myhost:1003 => port=1003 tls=false resolver=dns
 myhost:1003?tls=true => port=1003 tls=true resolver=dns
 dns://myhost:1003?tls=true => port=1003 tls=true resolver=dns
@@ -101,12 +101,16 @@ https://github.com/dapr/java-sdk/blob/76aec01e9aa4af7a72b910d77685ddd3f0bf86f3/s
 * Compatability guarantees
 This feature should allow localhost definition too `http://127.0.0.1:3500`, for example.
 
-this feature should continue to allow using other resolvers other than DNS (e.g.
+* This feature should continue to allow using other resolvers other than DNS (e.g.
 `unix://`).
 
 * Deprecation / co-existence with existing functionality
 This feature takes priority over existing (inconsistent) environment variables from each SDK. If app provides a hardcoded value for Dapr endpoint (via constructor, for example), it takes priority.
 Use of existing `DAPR_API_TOKEN` environment variables is highly encouraged for remote API but not required.
+
+* SDKs will continue to accept the old behaviour of DAPR_GRPC_ENPOINT` with
+  the scheme value `https` to signal to use TLS. Where a value contains both the
+  `https` scheme and `?tls=false` query, SDKs will error and refuse to connect.
 
 * Feature flags
 N/A
