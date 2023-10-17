@@ -139,7 +139,7 @@ What changes or actions are required to make this proposal complete?
 
 ## Test matrix 
 
-| URL                                                          | Endpoint string to pass to grpc client    | Hostname                          | Port | Secure | Error                                                                       |
+| URL                                                          | Endpoint string to pass to grpc client    | Hostname                          | Port | TLS | Error                                                                       |
 | ------------------------------------------------------------ | ----------------------------------------- | --------------------------------- | ---- | ------ | --------------------------------------------------------------------------- |
 | :5000                                                        | dns:localhost:5000                        | localhost                         | 5000 | FALSE  |                                                                             |
 | :5000?tls=false                                              | dns:localhost:5000                        | localhost                         | 5000 | FALSE  |                                                                             |
