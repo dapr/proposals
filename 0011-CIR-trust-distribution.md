@@ -60,7 +60,7 @@ Trust distribution will be conducted by the Operator and written to the ConfigMa
 The Operator is a natural fit as it is not Sentry (the identity issuance server), and machinery for Kubernetes controllers already exists in the Operator today.
 ConfigMaps are a natural choice as they can be mounted by Pods & containers in Kubernetes, and trust bundles are not secrets so Secrets are not appropriate.
 There is also prior art to other projects distributing trust in this way, such as [Istio](https://github.com/istio/istio/blob/4c65649a9b116584281fadcaf8c3dd6b42d34036/istioctl/pkg/workload/workload_test.go#L340) and cert-manager's [trust-manager](https://github.com/cert-manager/trust-manager#example-bundle).
-We can also add support for writing to Kubernetes [ClusterTrustAnchors](https://github.com/kubernetes/enhancements/issues/3257), though this resource is very new, and will not be available in all target Kubernetes cluster versions.
+We can also add support for writing to Kubernetes [ClusterTrustBundles](https://github.com/kubernetes/enhancements/issues/3257), though this resource is very new, and will not be available in all target Kubernetes cluster versions.
 The `dapr-root-ca.crt` ConfigMap name is consistent with Kubernetes and Istio naming.
 The operator will source the root of trust to be distributed from the mounted `dapr-root-ca.crt` Secret in the control plane namespace.
 The operator will watch for this mounted file for updates using [fsnotify](https://github.com/fsnotify/fsnotify), and distribute the contents to the named ConfigMap in all namespaces.
