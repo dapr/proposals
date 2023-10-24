@@ -20,6 +20,11 @@ To support the creation of features:
 - External CA sources such as cert-manager and cloud provider CAs etc.
 - Dapr multi-cluster and networking federation
 
+Related issues:
+- [Multicluster Kubernetes](https://github.com/dapr/dapr/issues/3460)
+- [[Proposal] Support third-party CA - Integrate Cert Manager with Dapr](https://github.com/dapr/dapr/issues/3968)
+- [[Proposal] Automatic root certificate rotation](https://github.com/dapr/dapr/issues/5958)
+
 ### Goals
 
 - Implement an active trust distribution mechanism for Dapr in Kubernetes that responds to updates.
