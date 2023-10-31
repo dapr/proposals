@@ -28,12 +28,13 @@ Related issues:
 ### Goals
 
 - Implement an active trust distribution mechanism for Dapr in Kubernetes that responds to updates.
+- Trust distribution in self-hosted mode can be be implemented by the user.
 - Enable root certificate rotation with no downtime.
 
 ### Non-Goals
 
 - Sentry implements CA root rotation.
-- Implement external CA support.
+- Implement external CA support, though this proposal will enable this feature to be developed in the future.
 - Implement Dapr trust federation.
 
 ### Current Shortfalls
