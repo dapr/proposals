@@ -113,7 +113,7 @@ type RenewLockRequest struct {
  	// This is an arbitrary value supplied by the user.
  	ResourceID string `json:"resourceId"`
  	// ID of the lock.
- 	LockID any `json:"lockID"`
+ 	LockID string `json:"lockID"`
  	// Maximum duration for the lock (if not renewed).
  	// If <= 0, the lock uses the default TTL set in the component.
  	TTL time.Duration `json:"ttl"`
