@@ -28,7 +28,7 @@ Related issues:
 ### Goals
 
 - Implement an active trust distribution mechanism for Dapr in Kubernetes that responds to updates.
-- Enable root rotation with no downtime.
+- Enable root certificate rotation with no downtime.
 
 ### Non-Goals
 
