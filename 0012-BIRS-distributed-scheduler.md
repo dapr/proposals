@@ -27,7 +27,7 @@ Examples include:
 
 ## Goals
 
-Implement a change into `dapr/dapr` that facilitates a seamless experience allowing for the scheduling of jobs across API building blocks using a new scheduler API building block and control plane service. The Scheduler Building Block is a job orchestrator, not executor.
+Implement a change into `dapr/dapr` that facilitates a seamless experience allowing for the scheduling of jobs across API building blocks using a new scheduler API building block and control plane service. The Scheduler Building Block is a job orchestrator, not executor. The design guarantees *at least once* job execution with a bias towards durability and horizontal scaling over precision. This means we **can** guarantee that a job will never be invoked *before* the schedule is due, but we **cannot** guarantee a ceiling time on when the job is invoked *after* the due time is reached.
 
 ## Non-Goals
 
@@ -35,6 +35,7 @@ Implement a change into `dapr/dapr` that facilitates a seamless experience allow
     - From the Scheduler Service to the Sidecar. A new 'sidecar' target will be added to available targets such that users can configure the Dapr Resiliency Policies. 
 - Deep observability into jobs in control plane
     - Things beyond basic ListJobs. This might entail things like the history of prior triggered jobs or future jobs.
+- Applications to do REST on Jobs in other namespaces. Currently, jobs will be namespaced to the app/sidecar namespace.
 
 ## Current Shortfalls
 
@@ -44,7 +45,7 @@ Currently, Dapr users are able to use the **Publish and Subscribe** building blo
 
 For **Service Invocation**, this building block could also benefit from a scheduler in that it would enable the scheduling of method calls between applications.
 
-As of now, Dapr does have an **input cron binding** component, which can allow users to schedule tasks. This requires the component yaml file, where users can listen on an endpoint that is scheduled. This is limited to being an input binding only. The Scheduler Service will enable the scheduling of jobs to scale across multiple replicas, while guaranteeing at most once execution of each trigger.
+As of now, Dapr does have an **input cron binding** component, which can allow users to schedule tasks. This requires the component yaml file, where users can listen on an endpoint that is scheduled. This is limited to being an input binding only. The Scheduler Service will enable the scheduling of jobs to scale across multiple replicas, while guaranteeing that a job will only be triggered by 1 Scheduler Service instance.
 
 *Note:* Performance is the primary focus while implementing this feature given the current shortfalls.
 
@@ -71,7 +72,6 @@ Example JSON (shown below) that you can use to schedule a job by making a reques
 
 ```Json
 {
-  "name": "prd-db-backup",
   "schedule": "@daily",
   "data": {
     "task": "db-backup",
@@ -182,16 +182,24 @@ The interval functionality of the Actor Reminder is similar to the job schedule.
 
 Similar logic can be applied to a job in the following manner: 
 
-- `dueTime` => A job is expected to be scheduled as soon as it is submitted. There is no delaying a job to be scheduled, so this feature will not be supported for jobs
-- `period` => is baked into the job parameters and can be showcased below where the job will run 4 times (`repeats`) and auto deletes after 10s (`ttl`)
+- `dueTime` => The time after which the job is invoked.
+- `period` => Is baked into the job parameters and can be showcased below where the job will run 4 times (`repeats`) and auto deletes after 10s (`ttl`)
 - `repeats` => The job will run up to the number of `repeats` specified, otherwise if unspecified it runs based on the `schedule` provided until deleted via a `ttl` or a user specified deletion via the APIs
 
 ```json
 {
     "schedule": "@every 10s",
+    "dueTime":"10s",
     "repeats": 4,
     "ttl": "10s"
 }
+```
+
+The `dueTime` for jobs will follow the same format from Actor Reminders. Supported formats:
+```
+RFC3339 date format, e.g. 2020-10-02T15:00:00Z
+time.Duration format, e.g. 2h30m
+ISO 8601 duration format, e.g. PT2H30M
 ```
 
 The `ttl` for jobs will follow the same format from Actor Reminders. Supported formats:
@@ -294,8 +302,11 @@ message Job {
     // Optional: jobs with fixed repeat counts (accounting for Actor Reminders).
     int32 repeats = 4;
 
+    // Optional: sets time at which or time interval before the callback is invoked for the first time.
+    string due_time = 5;
+
     // Optional: Time To Live to allow for auto deletes (accounting for Actor Reminders).
-    string ttl = 5;
+    string ttl = 6;
 }
 
 // rpc ScheduleJob(ScheduleJobRequest) returns (google.protobuf.Empty) {}
@@ -351,13 +362,19 @@ For the daprd sidecar to Scheduler Service communication,
 We will use the same exact protos from the Public Dapr API, but inside a **new**: `dapr/proto/scheduler/scheduler.proto`. However, the one difference will be in the `Job message`, where we will add:
 
 ```proto
-    // Namespace for jobs to allow for multi tenancy.
-    string namespace = 5;
+    // Job is the definition of a job.
+    message Job {
 
-    // The metadata associated with the job.
-    // The sidecar will create the unique `key` for storing data in the state store and pass the generated `key` along to the scheduler service for data lookup upon ‘trigger’ time later on. 
-    // The sidecar will also add metadata in order to know whether this job is registered for an actor. This is needed, as the routing mechanism for actors is different for the callback.
-    map<string,string> metadata = 6;
+        daprv1.Job job = 1;
+
+        // Namespace of the job.
+        string namespace = 2;
+
+        // The metadata associated with the job.
+        // The sidecar will create the unique `key` for storing data in the state store and pass the generated `key` along to the scheduler service for data lookup upon ‘trigger’ time later on. 
+        // The sidecar will also add metadata in order to know whether this job is registered for an actor. This is needed, as the routing mechanism for actors is different for the callback.
+        map<string,string> metadata = 3;
+    }
 ```
 
 
@@ -378,11 +395,14 @@ message RegisterRequest {
     // The id of the application (app_id). This is used as the key in etcd for the Scheduler Service.
     string app_id = 1;
 
+    // The namespace.
+    string namespace = 2;
+
     // The hostname of the daprd sidecar.
-    string hostname = 2;
+    string hostname = 3;
 
     // The port of the daprd sidecar.
-    int32 port = 3;
+    int32 port = 4;
 }
 ```
 
@@ -450,7 +470,8 @@ To guarantee we don't have several Scheduler Service instances firing off the sa
         * minimum RPS for registering reminders
         * minimum RPS for triggers to app
         * maximum number of reminders
-
+        * have a backup and recovery scenario of when Scheduler cluster permanently fails 
+        
 ## Completion Checklist
 
 What changes or actions are required to make this proposal complete? Some examples:
