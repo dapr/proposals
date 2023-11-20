@@ -87,7 +87,7 @@ Potential `dapr/go-sdk` example code:
 ```go
 import(
     ...
-    scheduler "github.com/dapr/dapr/pkg/proto/scheduler/v1"
+    schedulerapi "github.com/dapr/dapr/pkg/proto/scheduler/v1"
     ...
 )
 ...
@@ -97,7 +97,7 @@ type Metadata struct {
     BackupLocation string `json:"backup_location"`
 }
 
-type DbBackup struct {
+type DBBackup struct {
     Task     string   `json:"task"`
     Metadata Metadata `json:"metadata"`
 }
@@ -125,7 +125,7 @@ func main() {
 		Job:          job,
 	}
 
-    _, err = client.ScheduleJob(context.Background(), scheduleJobRequest)
+    err = client.ScheduleJob(context.Background(), scheduleJobRequest)
 	if err != nil {
 		fmt.Printf("Error scheduling job: %v\n", err)
 	}
@@ -161,7 +161,7 @@ func main() {
 		Name: "prd-db-backup",
 	}
 
-	_, err = client.DeleteJob(context.Background(), deleteJobRequest)
+	err = client.DeleteJob(context.Background(), deleteJobRequest)
 	if err != nil {
 		fmt.Printf("Error deleting job: %v\n", err)
 	}
