@@ -106,11 +106,11 @@ func main() {
 ...
 
     // Define a job to be scheduled
-    job := &scheduler.Job{
+    job := &schedulerapi.Job{
         Name:     "prd-db-backup",
         Schedule: "@daily",
         Data: &ptypes.Any{
-            Value: &DbBackup{
+            Value: &DBBackup{
                 Task: "db-backup",
                 Metadata: Metadata{
                     DBName:         "my-prod-db",
@@ -121,7 +121,7 @@ func main() {
     }
 
     // Schedule a job
-	scheduleJobRequest := &scheduler.ScheduleJobRequest{
+	scheduleJobRequest := &schedulerapi.ScheduleJobRequest{
 		Job:          job,
 	}
 
@@ -131,7 +131,7 @@ func main() {
 	}
 
 	// Get a job by name
-	getJobRequest := &scheduler.GetJobRequest{
+	getJobRequest := &schedulerapi.GetJobRequest{
 		Name: "prd-db-backup",
 	}
 
@@ -144,7 +144,7 @@ func main() {
 	}
 
 	// List all jobs by app_id
-	listJobsRequest := &scheduler.ListJobsRequest{
+	listJobsRequest := &schedulerapi.ListJobsRequest{
 		AppID: "your-app-id",
 	}
 
@@ -157,7 +157,7 @@ func main() {
 	}
 
 	// Delete a job by name
-	deleteJobRequest := &scheduler.DeleteJobRequest{
+	deleteJobRequest := &schedulerapi.DeleteJobRequest{
 		Name: "prd-db-backup",
 	}
 
