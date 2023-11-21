@@ -6,7 +6,7 @@
 
 ## Overview
 
-I propose that declarative and programmatic PubSub subscriptions should be extended to include an optional resiliency policy which is applied only to the inbound process of delivering the message  (sidecar to app subscription endpoint). The resiliency policy is scoped to just the subscription it was declared into / against.
+I propose that declarative and programmatic PubSub subscriptions should be _extended_ to include an _optional_ resiliency policy which is applied only to the inbound process of delivering the message  (sidecar to app subscription endpoint). The resiliency policy is scoped to just the subscription it was declared into / against.
 
 This should only impact the runtime, but I could see potential work in the SDKs to support inline resiliency policies i.e. extending any convenience methods/attributes for registering subscriptions.
 
@@ -52,6 +52,9 @@ This should only impact the runtime, but I could see potential work in the SDKs 
 ## Implementation Details
 
 ### Design
+
+![image](https://github.com/olitomlinson/proposals/assets/4224880/f7d881d1-7511-430b-bf5a-5a5203b5b005)
+
 
 #### Declarative Subscription 
 
