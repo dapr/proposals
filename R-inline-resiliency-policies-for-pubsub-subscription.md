@@ -149,7 +149,39 @@ continuing with the **slim** theme, this is how the `/dapr/subscribe` response c
     }
 ]
 ```
+---
+#### Potential implementation (on the surface this looks like it could work, but not validated!)
 
+**As it stands...** 
+
+when a Subscription is bound to a Topic in the runtime, the inbound policy is loaded for the target pubsub component. https://github.com/dapr/dapr/blob/70f5fd6982f5e068f2e93614ebb6542dc84cb771/pkg/runtime/processor/pubsub/topics.go#L56
+
+```go
+policyDef := p.resiliency.ComponentInboundPolicy(name, resiliency.Pubsub)
+```
+At the point of the message being dispatched to the app channel, a policy runner is created and loaded with the policy.
+https://github.com/dapr/dapr/blob/70f5fd6982f5e068f2e93614ebb6542dc84cb771/pkg/runtime/processor/pubsub/topics.go#L179C3-L179C3
+```go
+policyRunner := resiliency.NewRunner[any](ctx, policyDef)
+		_, err = policyRunner(func(ctx context.Context) (any, error) {
+			var pErr error
+			if p.isHTTP {
+				pErr = p.publishMessageHTTP(ctx, sm)
+```
+
+**I propose the above is modifed...** 
+
+Such that the subscription policy (if one has been supplied) is **swapped** in place of the component inbound policy
+```go
+policyDef := p.resiliency.ComponentInboundPolicy(name, resiliency.Pubsub)
+subscriptionPolicyDef, ok := p.resiliency.SubscriptionResiliencyPolicy(route.Resiliency)
+
+if ok {
+    policyDef = subscriptionPolicyDef
+}
+```
+
+---
 
 ### Feature lifecycle outline
 
