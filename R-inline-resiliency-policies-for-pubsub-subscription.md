@@ -1,4 +1,4 @@
-# Inline resiliency policies in pubsub subscription declarations
+# Inline resiliency policies for pubsub subscription
 
 * Author(s): Oliver Tomlinson (@olitomlinson)
 * State: Draft
@@ -8,7 +8,7 @@
 
 I propose that declarative and programmatic PubSub subscriptions should be extended to include an optional resiliency policy which is applied only to the inbound process of delivering the message  (sidecar to app subscription endpoint). The resiliency policy is scoped to just the subscription it was declared into / against.
 
-This should only impact the runtime, but I could see potential work in the SDKs to support inline resiliency policies i.e. extending any convenience methods/attributes for registering subscribers.
+This should only impact the runtime, but I could see potential work in the SDKs to support inline resiliency policies i.e. extending any convenience methods/attributes for registering subscriptions.
 
 ## Background
 
@@ -59,7 +59,7 @@ This should only impact the runtime, but I could see potential work in the SDKs 
 apiVersion: dapr.io/v2alpha1
 kind: Subscription
 metadata:
-  name: order-subscriber
+  name: order-subscription
 spec:
   pubsubname: myPubsubComponent
   topic: newOrder
@@ -85,8 +85,8 @@ spec:
       myPubsubComponent:
         topic:
           newOrder:
-            subscriber:
-              order-subscriber:
+            subscription:
+              order-subscription:
                 timeout: general
                 retry: important
                 circuitBreaker: pubsubCB
@@ -98,7 +98,7 @@ spec:
 apiVersion: dapr.io/v2alpha1
 kind: Subscription
 metadata:
-  name: order-subscriber
+  name: order-subscription
 spec:
   pubsubname: myPubsubComponent
   topic: newOrder
