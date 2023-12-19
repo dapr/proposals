@@ -546,10 +546,10 @@ The customer must write a corresponding compensation activity for each activity 
 
 ```java
 public class ProcessPaymentActivity implements WorkflowActivity {......}
-public class ProcessPaymentCompensationActivity implements CompensatableWorkflowActivity {......}
+public class ProcessPaymentCompensationActivity implements WorkflowActivity {......}
 
 public class UpdateInventoryActivity implements WorkflowActivity {......}
-public class UpdateInventoryCompensationActivity implements CompensatableWorkflowActivity {......}
+public class UpdateInventoryCompensationActivity implements WorkflowActivity {......}
 ```
 
 These compensation activities should also be registered like normal activities:
