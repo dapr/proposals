@@ -121,20 +121,23 @@ C) Changes in templates/deployment.yaml of particular service in charts to check
 
 ##### CLI flags and annotations:
 
-Injector is configured (via env vars set by Helm) with what actor and/or reminders service to use. Default value is to use placement and no reminders service (so it uses built-in reminders). It is possible to set in the Helm chart values to use different reminders and/or placement services.
+* Injector is configured (via env vars set by Helm) with what actor and/or reminders service to use. Default value is to use placement and no reminders service (so it uses built-in reminders). It is possible to set in the Helm chart values to use different reminders and/or placement services.
+
 For reminders:
 
-Default is to set nothing in the CLI, which means use the built-in reminders (that use state stores)
-If in the Helm chart the injector is configured with a reminders service, then it adds the CLI flag --reminders-service <name>:<address>, for example --reminders-service scheduler:k8s-svc-name.svc.cluster.local:port (the <name> part tells daprd which implementation to load)
+* Default is to set nothing in the CLI, which means use the built-in reminders (that use state stores)
+* If in the Helm chart the injector is configured with a reminders service, then it adds the CLI flag `--reminders-service <name>:<address>`, for example `--reminders-service scheduler:k8s-svc-name.svc.cluster.local:port` (the `<name>` part tells daprd which implementation to load)
+
 For placement:
 
-If the user has set the dapr.io/placement-host-address annotation, that forces the injector to set --placement-host-address to the value passed, as is the case today
-Otherwise, if there's no explicit dapr.io/placement-host-address annotation:
-If the configuration (via Helm) is to use placement, then sets --placement-host-address exactly as today (this is default value)
-If the configuration is to use another actors service, it sets --actors-service <name>:<address>:<port> following the same logic as the reminders svc)
+* If the user has set the `dapr.io/placement-host-address` annotation, that forces the injector to set `--placement-host-address` to the value passed, as is the case today
+* Otherwise, if there's no explicit dapr.io/placement-host-address annotation:
+    * If the configuration (via Helm) is to use placement, then sets `--placement-host-address` exactly as today (this is default value)
+    * If the configuration is to use another actors service, it sets `--actors-service <name>:<address>:<port>` following the same logic as the reminders svc)
 This is backwards-compatible.
 
-Note: Exception is thrown when --actors-service or --reminders-service are set, if the injector is trying to inject a sidecar that use an oldeer version of Dapr, daprd that will crash because the flag doesn't exist. This is a "feature": if the cluster wants to use a different actors/reminders service, versions of Dapr that don't support that should crash.
+Note: Exception is thrown when `--actors-service` or `--reminders-service` are set, if the injector is trying to inject a sidecar that use an oldeer version of Dapr, daprd that will crash because the flag doesn't exist. This is a "feature": if the cluster wants to use a different actors/reminders service, versions of Dapr that don't support that should crash.
+
 
 (https://github.com/dapr/dapr/pull/7318)
 
