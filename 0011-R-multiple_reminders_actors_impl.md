@@ -53,7 +53,7 @@ type PlacementService interface {
 	// ReportActorDeactivation is sent by Client to Service to report an actor that has been deactivated.
 	// This is useful when actors lifecycle information needs to be updated in Placement service.
 	ReportActorDeactivation(ctx context.Context, actorType, actorID string) error
-	// HaltActorFn sets the function to be called, when actor deactivation is triggered.
+	// SetHaltActorFn sets the HaltActorFn function to be called, when actor deactivation is triggered.
 	SetHaltActorFns(haltFn HaltActorFn, haltAllFn HaltAllActorsFn)
 	// SetOnAPILevelUpdate sets the function to be called when the API level is updated.
 	SetOnAPILevelUpdate(fn func(apiLevel uint32))
