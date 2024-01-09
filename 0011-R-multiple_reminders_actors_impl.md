@@ -11,7 +11,7 @@ This is a proposal to allow multiple versions of Reminders/Actors Implementation
 
 ## Background
 
-Currently, we see multiple issue with Reminders creation/deletion at scale and with placement Service.
+Currently, we see multiple issues with Reminders creation/deletion at scale and with placement Service.
 We should be able to allow users to use core reminders/actors functionality of Dapr runtime; while implementing Reminders/Actors interface in their own way to solve these issues.
 
 This would let users solve reminders/actors issues as per their own requirements and design.
