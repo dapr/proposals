@@ -57,6 +57,9 @@ type PlacementService interface {
 	SetHaltActorFns(haltFn HaltActorFn, haltAllFn HaltAllActorsFn)
 	// SetOnAPILevelUpdate sets the function to be called when the API level is updated.
 	SetOnAPILevelUpdate(fn func(apiLevel uint32))
+	// SetOnTableUpdateFn sets afterTableUpdateFn, which is the function invoked after table updates,
+	// such as draining actors and resetting reminders.
+	SetOnTableUpdateFn(fn func())
 
 	// PlacementHealthy returns true if the placement service is healthy.
 	PlacementHealthy() bool
@@ -77,7 +80,6 @@ type RemindersProvider interface {
 	DrainRebalancedReminders(actorType string, actorID string)
 	OnPlacementTablesUpdated(ctx context.Context)
 
-	SetResiliencyProvider(resiliency resiliency.Provider)
 	SetExecuteReminderFn(fn ExecuteReminderFn)
 	SetStateStoreProviderFn(fn StateStoreProviderFn)
 	SetLookupActorFn(fn LookupActorFn)
