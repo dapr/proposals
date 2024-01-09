@@ -25,7 +25,7 @@ This has already been discussed in different maintainers meetings, notably in [t
 
 ### Design
 
-Reminders / Actors should have their Interfaces segregated in such a way that it shuld be possible to implement them in an independent way.
+Reminders / Actors should have their Interfaces segregated in such a way that it should be possible to implement them in an independent way.
 There are two places where APIs or functions required for Actors and Reminders are defined.
 
 1. Protos in dapr/proto package.
