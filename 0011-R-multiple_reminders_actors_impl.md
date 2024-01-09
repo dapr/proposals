@@ -42,13 +42,20 @@ Only interfaces in pkg/actors/internal have to be updated. A major work has alre
 type PlacementService interface {
 	io.Closer
 
+	// Start connects placement service to register for membership.
 	Start(context.Context) error
+	// WaitUntilReady waits until placement service is ready.
 	WaitUntilReady(ctx context.Context) error
+	// LookupActor resolves to actor service instance address
 	LookupActor(ctx context.Context, req LookupActorRequest) (LookupActorResponse, error)
+	// AddHostedActorType registers an actor type by adding it to the list of known actor types (if it's not already registered)
 	AddHostedActorType(actorType string, idleTimeout time.Duration) error
+	// ReportActorDeactivation is sent by Client to Service to report an actor that has been deactivated.
+	// This is useful when actors lifecycle information needs to be updated in Placement service.
 	ReportActorDeactivation(ctx context.Context, actorType, actorID string) error
-
+	// HaltActorFn sets the function to be called, when actor deactivation is triggered.
 	SetHaltActorFns(haltFn HaltActorFn, haltAllFn HaltAllActorsFn)
+	// SetOnAPILevelUpdate sets the function to be called when the API level is updated.
 	SetOnAPILevelUpdate(fn func(apiLevel uint32))
 
 	// PlacementHealthy returns true if the placement service is healthy.
@@ -85,7 +92,7 @@ And, the methods from these clients will call methods of the servers, wherever r
 
 ![actors_reminders](./resources/0011-R-multiple_reminders_actors_impl/Actors_Reminders_Interface.png)
 
-Depending on the implementation, it can be decided that all RPCs need to be defined for a Service. For example, for the Placement Service which creates and pushes Actor Types v/s Dapr Hosts table information to all sidecars, only table related ReportDaprStatus needs to be an rpc.
+Depending on the implementation, it can be decided what all RPCs need to be defined for a Service. For example, for the Placement Service which creates and pushes Actor Types v/s Dapr Hosts table information to all sidecars, only table related to ReportDaprStatus needs to be an rpc.
 
 Whereas, for a Service, where Actor information is Pulled by sidecars from Actors Service needs some methods like LookupActor or ReportActorDeactivation, which thus form a part of RPCs.
 
