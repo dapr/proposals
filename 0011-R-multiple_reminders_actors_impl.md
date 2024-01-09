@@ -85,7 +85,7 @@ And, the methods from these clients will call methods of the servers, wherever r
 
 ![actors_reminders](./resources/0011-R-multiple_reminders_actors_impl/Actors_Reminders_Interface.png)
 
-Depending on the implementation, it can be decided that what all RPCs need to be defined for a Service. Example, for a Placement Service which just creates and pushes Actor Types v/s Dapr Hosts table information to All sidecars, only table related ReportDaprStatusneeds to be as rpc.
+Depending on the implementation, it can be decided that all RPCs need to be defined for a Service. For example, for the Placement Service which creates and pushes Actor Types v/s Dapr Hosts table information to all sidecars, only table related ReportDaprStatus needs to be an rpc.
 
 Whereas, for a Service, where Actor information is Pulled by sidecars from Actors Service needs some methods like LookupActor or ReportActorDeactivation, which thus form a part of RPCs.
 
