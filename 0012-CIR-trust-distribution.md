@@ -1,7 +1,7 @@
 # Dapr Trust Distribution
 
 * Author(s): joshvanl
-* State: Draft
+* State: Approved
 * Updated: 2023-10-24
 
 ## Overview
