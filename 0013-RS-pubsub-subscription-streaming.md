@@ -31,6 +31,8 @@ Using a gRPC streaming API is the most natural fit for this feature, as it allow
 These messages are typed RPC giving the best UX in each SDK.
 Once implemented, this feature will need to be implemented in all Dapr SDKs.
 
+An equivalent HTTP API may be interesting for users, however is outside the scope of this proposal.
+
 ## Solution
 
 Rough PoC implementation: https://github.com/dapr/dapr/commit/ed40c95d11b78ab9a36a4a8f755cf89336ae5a05
@@ -50,14 +52,14 @@ service Dapr {
 // messages must be event responses.
 message SubscribeTopicEventsRequest {
   oneof subscribe_topic_events_request_type {
-    SubscribeTopicEventsInitialRequest request = 1;
+    SubscribeTopicEventsSubscribeRequest request = 1;
     SubscribeTopicEventsResponse event_response = 2;
   }
 }
 
-// SubscribeTopicEventsInitialRequest is the initial message containing the
+// SubscribeTopicEventsSubscribeRequest is the initial message containing the
 // details for subscribing to a topic via streaming.
-message SubscribeTopicEventsInitialRequest {
+message SubscribeTopicEventsSubscribeRequest {
   // The name of the pubsub component
   string pubsub_name = 1;
 
@@ -86,7 +88,7 @@ message SubscribeTopicEventsResponse {
 }
 ```
 
-When an application wishes to subscribe to a topic it will initiate a stream with `SubscribeTopicEventsRequest`, and `Send` the initial request `SubscribeTopicEventsInitialRequest` containing the options for the subscription.
+When an application wishes to subscribe to a topic it will initiate a stream with `SubscribeTopicEventsRequest`, and `Send` the initial request `SubscribeTopicEventsSubscribeRequest` containing the options for the subscription.
 Daprd will then setup the machinery to add this gRPC RPC stream to the set of subscribers.
 The request contains no route or path matching configuration as all events will be sent on this stream.
 Subscription gRPC streams are the highest priority when Daprd determines which publisher a message should be sent to.
@@ -104,8 +106,8 @@ Client code:
 ```go
 	stream, _ := client.SubscribeTopicEvents(ctx)
 	stream.Send(&rtv1.SubscribeTopicEventsRequest{
-		SubscribeTopicEventsRequestType: &rtv1.SubscribeTopicEventsRequest_InitialRequest{
-			InitialRequest: &rtv1.SubscribeTopicEventsInitialRequest{
+		SubscribeTopicEventsRequestType: &rtv1.SubscribeTopicEventsRequest_Request{
+			Request: &rtv1.SubscribeTopicEventsSubscribeRequest{
 				PubsubName: "mypub", Topic: "a",
 			},
 		},
@@ -135,7 +137,7 @@ Client code:
 - [ ] gRPC server implementation in daprd
 - [ ] API documentation
 - [ ] SDK implementations
-  - [ ] DotNet
+  - [ ] .Net
   - [ ] Java
   - [ ] Go
   - [ ] Python
