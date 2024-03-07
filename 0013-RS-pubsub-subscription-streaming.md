@@ -1,6 +1,6 @@
 # PubSub Subscription Streaming
 
-* Author(s): joshvanl
+* Author(s): @joshvanl
 * State: Ready for Implementation
 * Updated: 2024-03-05
 
