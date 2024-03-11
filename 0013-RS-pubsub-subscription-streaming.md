@@ -6,8 +6,8 @@
 
 ## Overview
 
-This is a design proposal to implement a new Dapr runtime gRPC API for subscription streaming.
-This new gRPC API will allow an application to subscribe to a PubSub topic and receive messages through this RPC.
+This is a design proposal to implement a new Dapr runtime gRPC and HTTP API for subscription streaming.
+This new gRPC & HTTP API will allow an application to subscribe to a PubSub topic and receive messages through this RPC.
 Applications will be able to dynamically subscribe and unsubscribe to topics, and receive messages without opening a port to receive incoming traffic from Dapr.
 
 ## Background
@@ -25,17 +25,18 @@ A streaming Subscription API will allow applications to dynamically subscribe to
 
 ## Expectations and alternatives
 
-This proposal outlines the gRPC streaming API for subscribing to PubSub topics.
+This proposal outlines the gRPC & HTTP streaming API for subscribing to PubSub topics.
 This proposal does _not_ address any hot-reloading functionality to the existing programmatic or declarative subscription configuration.
 Using a gRPC streaming API is the most natural fit for this feature, as it allows for first class long-lived bi-directional connections to Dapr to receive messages.
+A supplementary WebSocket based HTTP API is useful for applications which do not have a gRPC client available or HTTP WebSockets are preferred.
 These messages are typed RPC giving the best UX in each SDK.
 Once implemented, this feature will need to be implemented in all Dapr SDKs.
 
-An equivalent HTTP API may be interesting for users, however is outside the scope of this proposal.
-
 ## Solution
 
-Rough PoC implementation: https://github.com/dapr/dapr/commit/ed40c95d11b78ab9a36a4a8f755cf89336ae5a05
+### gRPC
+
+Rough gRPC PoC implementation: https://github.com/dapr/dapr/commit/ed40c95d11b78ab9a36a4a8f755cf89336ae5a05
 
 The Dapr runtime gRPC server will implement the following new RPC and messages:
 
@@ -61,30 +62,30 @@ message SubscribeTopicEventsRequest {
 // details for subscribing to a topic via streaming.
 message SubscribeTopicEventsSubscribeRequest {
   // The name of the pubsub component
-  string pubsub_name = 1;
+  string pubsub_name = 1 [json_name = "pubsubName"];
 
   // The pubsub topic
-  string topic = 2;
+  string topic = 2 [json_name = "topic"];
 
   // The metadata passing to pub components
   //
   // metadata property:
   // - key : the key of the message.
-  map<string, string> metadata = 3;
+  map<string, string> metadata = 3 [json_name = "metadata"];
 
   // dead_letter_topic is the topic to which messages that fail to be processed
   // are sent.
-  optional string dead_letter_topic = 4;
+  optional string dead_letter_topic = 4 [json_name = "deadLetterTopic"];
 }
 
 // SubscribeTopicEventsResponse is a message containing the result of a
 // subscription to a topic.
 message SubscribeTopicEventsResponse {
   // id is the unique identifier for the subscription request.
-  string id = 1;
+  string id = 1 [json_name = "id"];
 
   // status is the result of the subscription request.
-  TopicEventResponse status = 2;
+  TopicEventResponse status = 2 [json_name = "status"];
 }
 ```
 
@@ -130,6 +131,20 @@ Client code:
 	})
 
 	stream.CloseSend()
+```
+
+### HTTP (WebSockets)
+
+Along with a gRPC based streaming API, a WebSocket based HTTP equivalent API will be implemented.
+Much like the gRPC API, the HTTP based WebSocket API will follow an initial request-response handshake, followed by a stream of messages to the client with status responses by the client, indexed by the message ID.
+The same proto types as using in the gRPC API (but in JSON blobs) will be used for the HTTP API.
+The server WebSocket implementation will be based on the [gorilla/websocket](https://github.com/gorilla/websocket) package, as this seems well used, understood and maintained.
+
+The HTTP streaming API will be available at the following endpoint.
+As the pubsub and topic information is in the request body, no request configuration is given in the URL.
+
+```
+GET: /v1.0/subscribe
 ```
 
 ## Completion Checklist
