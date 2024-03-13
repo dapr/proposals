@@ -22,9 +22,9 @@ As mentioned above, any significant change that needs design and a conversation 
 
 Proposal file are named in the following format:
 
-> `NNNN-FLAGS-description.md`
+> `YYYYMMDD-FLAGS-description.md`
 
-Where *NNNN* is the next incremental number in the proposal repository, as a 4 digit number (i.e 0001, 0002...), and *FLAGS* is one (or possibly more)  of:
+Where *YYYY* is a 4-digit year, MM for 2-digit month and DD for 2-digit day of when the proposal was last updated (like `20240309`, for example), and *FLAGS* is one (or possibly more)  of:
 
 * B - Building block change / creation
 * C - Components change / creation
@@ -33,7 +33,7 @@ Where *NNNN* is the next incremental number in the proposal repository, as a 4 d
 * R - Runtime
 * S - Affects SDKs
 
-So, for example, a proposal to create a new building block, such as the workflow building block, might be something like `0004-BRS-workflow-building-block.md`, whereas a change to the actor system, which does not require any changes to the SDKs themselves, would be something like `0005-R-actor-reminder-system.md`
+So, for example, a proposal to create a new building block, such as the workflow building block, might be something like `20240102-BRS-workflow-building-block.md`, whereas a change to the actor system, which does not require any changes to the SDKs themselves, would be something like `20240103-R-actor-reminder-system.md`
 
 ## Proposal Process
 
