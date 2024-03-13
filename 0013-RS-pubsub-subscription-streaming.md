@@ -42,25 +42,25 @@ The Dapr runtime gRPC server will implement the following new RPC and messages:
 
 ```proto
 service Dapr {
-  // SubscribeTopicEvents subscribes to a PubSub topic and receives topic events
+  // SubscribeTopicEventsAlpha1 subscribes to a PubSub topic and receives topic events
   // from it.
-  rpc SubscribeTopicEvents(stream SubscribeTopicEventsRequest) returns (stream TopicEventRequest) {}
+  rpc SubscribeTopicEventsAlpha1(stream SubscribeTopicEventsRequestAlpha1) returns (stream TopicEventRequestAlpha1) {}
 }
 
 // SubscribeTopicEventsRequest is a message containing the details for
 // subscribing to a topic via streaming.
 // The first message must always be the initial request. All subsequent
 // messages must be event responses.
-message SubscribeTopicEventsRequest {
+message SubscribeTopicEventsRequestAlpha1 {
   oneof subscribe_topic_events_request_type {
-    SubscribeTopicEventsSubscribeRequest request = 1;
-    SubscribeTopicEventsResponse event_response = 2;
+    SubscribeTopicEventsSubscribeRequestAlpha1 request = 1;
+    SubscribeTopicEventsResponseAlpha1 event_response = 2;
   }
 }
 
 // SubscribeTopicEventsSubscribeRequest is the initial message containing the
 // details for subscribing to a topic via streaming.
-message SubscribeTopicEventsSubscribeRequest {
+message SubscribeTopicEventsSubscribeRequestAlpha1 {
   // The name of the pubsub component
   string pubsub_name = 1 [json_name = "pubsubName"];
 
@@ -71,21 +71,26 @@ message SubscribeTopicEventsSubscribeRequest {
   //
   // metadata property:
   // - key : the key of the message.
-  map<string, string> metadata = 3 [json_name = "metadata"];
+  optional map<string, string> metadata = 3 [json_name = "metadata"];
 
   // dead_letter_topic is the topic to which messages that fail to be processed
   // are sent.
   optional string dead_letter_topic = 4 [json_name = "deadLetterTopic"];
+
+  // max_in_flight_messages is the maximum number of in-flight messages that
+  // can be processed by the subscriber at any given time.
+  // Default is no limit.
+  optional max_in_flight_messages = 5 [json_name = "maxInFlightMessages"];
 }
 
 // SubscribeTopicEventsResponse is a message containing the result of a
 // subscription to a topic.
-message SubscribeTopicEventsResponse {
+message SubscribeTopicEventsResponseAlpha1 {
   // id is the unique identifier for the subscription request.
   string id = 1 [json_name = "id"];
 
   // status is the result of the subscription request.
-  TopicEventResponse status = 2 [json_name = "status"];
+  TopicEventResponseAlpha1 status = 2 [json_name = "status"];
 }
 ```
 
@@ -105,10 +110,10 @@ An event topic response will follow the timeout resiliency as currently exist fo
 Client code:
 
 ```go
-	stream, _ := client.SubscribeTopicEvents(ctx)
-	stream.Send(&rtv1.SubscribeTopicEventsRequest{
-		SubscribeTopicEventsRequestType: &rtv1.SubscribeTopicEventsRequest_Request{
-			Request: &rtv1.SubscribeTopicEventsSubscribeRequest{
+	stream, _ := client.SubscribeTopicEventsAlpha1(ctx)
+	stream.Send(&rtv1.SubscribeTopicEventsRequestAlpha1{
+		SubscribeTopicEventsRequestTypeAlpha1: &rtv1.SubscribeTopicEventsRequest_RequestAlpha1{
+			Request: &rtv1.SubscribeTopicEventsSubscribeRequestAlpha1{
 				PubsubName: "mypub", Topic: "a",
 			},
 		},
@@ -121,9 +126,9 @@ Client code:
 	})
 
 	event, _ := stream.Recv()
-	stream.Send(&rtv1.SubscribeTopicEventsRequest{
-		SubscribeTopicEventsRequestType: &rtv1.SubscribeTopicEventsRequest_EventResponse{
-			EventResponse: &rtv1.SubscribeTopicEventsResponse{
+	stream.Send(&rtv1.SubscribeTopicEventsRequestAlpha1{
+		SubscribeTopicEventsRequestType: &rtv1.SubscribeTopicEventsRequest_EventResponseAlpha1{
+			EventResponse: &rtv1.SubscribeTopicEventsResponseAlpha1{
 				Id:     event.Id,
 				Status: &rtv1.TopicEventResponse{Status: rtv1.TopicEventResponse_SUCCESS},
 			},
@@ -144,7 +149,38 @@ The HTTP streaming API will be available at the following endpoint.
 As the pubsub and topic information is in the request body, no request configuration is given in the URL.
 
 ```
-GET: /v1.0/subscribe
+GET: /v1.0-alpha1/subscribe
+```
+
+```json
+INITIAL_REQUEST (to server) = {
+  "pubsubName": "mypub",
+  "topic": "a",
+  "metadata": {
+    "key": "value"
+  },
+  "deadLetterTopic": "dead-letter-topic",
+  "maxInFlightMessages": 10
+}
+
+TOPIC_EVENT_REQUEST (to application) = {
+  "id": "123",
+  "source": "asource",
+  "type": "atype",
+  "spec_version": "1.0",
+  "data_content_type": "application/json",
+  "data": "abc",
+  "topic": "a",
+  "pubsub_name": "mypub",
+  "path": "/"
+}
+
+TOPIC_EVENT_RESPONSE (to server) = {
+  "id": "123",
+  "status": {
+    "status": "SUCCESS"
+  }
+}
 ```
 
 ## Completion Checklist
