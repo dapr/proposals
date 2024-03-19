@@ -69,7 +69,7 @@ Previous proposal as GitHub issue: dapr/dapr#4508
 
 ## Data flow: runtime and components
 
-![data flow](./resources/0002-RCBS-Crypto-building-block/data-flow.png)
+![data flow](./resources/20230327-RCBS-Crypto-building-block/data-flow.png)
 
 ## Dapr encryption scheme: dapr.io/enc/v1
 

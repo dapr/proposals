@@ -1,8 +1,8 @@
 # Improving the Dapr proposal process
 
 * Author(s): John Ewart (@johnewart), Mukundan Sundararajan (@mukundansundar)
-* State: Draft
-* Updated: 10/25/2022
+* State: Approved
+* Date: 10/25/2022
 
 ## Overview
 
