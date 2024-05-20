@@ -59,7 +59,7 @@ spec:
 - `pathNormalization.enabled` users can enable or disable path normalization through a straightforward boolean flag.
 - `ingress/egress` users can specify paths for ingress and egress traffic.
 - The path matching will use the same patterns as the Go standard library (see https://pkg.go.dev/net/http#hdr-Patterns), ensuring reliable and well-supported path normalization.
-- Non-matched paths will be ignored, ensuring that cardinality doesn't grow uncontrolled.
+- Non-matched paths will added to a catch all bucket, ensuring that cardinality doesn't grow uncontrolled.
 
 
 This Path Normalization API empowers users that relly on the metrics and observability scrapped from low cardinality that will soon be the default, providing a controlled means to manage path cardinality. Those indifferent may opt for low cardinality, while legacy high cardinality mode remains available for alternative needs.
