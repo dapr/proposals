@@ -14,7 +14,7 @@ In [#6723](https://github.com/dapr/dapr/issues/6723), Dapr reduced the cardinali
 
 The caveat with low cardinality is that it dropped paths since they were one of the sources for the high cardinality. While this is a reasonable approach it leads in the loss of important data needed for monitoring, performance analysis, and troubleshooting. To address this we opened [#7719](https://github.com/dapr/dapr/issues/7719).
 
-This proposal introduces an opt-in API that allows users to define the paths that matter the most, effectivelly normalizing metrics without reliying on regexes, which are known to be CPU-intensive.
+This proposal introduces an opt-in API that allows users to define the paths that matter the most, effectively normalizing metrics without relying on regex's, which are known to be CPU-intensive.
 
 With this API, users will be able to configure path normalization through a simple interface, providing the paths they care about and tailoring metrics to their specific requirements without compromising memory and security issues.
 
@@ -33,7 +33,7 @@ The proposed solution adds value to users observability without compromising sec
 
 ### Solution
 
-This proposal introduces an opt-in API for path normalization within Dapr HTTP metrics. The goal is to offer a way to normalize metrics without relying on CPU-intensive regexes.
+This proposal introduces an opt-in API for path normalization within Dapr HTTP metrics. The goal is to offer a way to normalize metrics without relying on CPU-intensive regex's.
 
 ```yaml
 spec:
@@ -44,12 +44,13 @@ spec:
       pathNormalization:
         enabled: true/false
         ingress:
-        - /orders/:orderID/items/:itemID
-        - /users/:userID
-        - /categories/:categoryID/subcategories/:subCategoryID
-        - /customers/:customerID/orders/:orderID
+        - /orders/{orderID}/items/{itemID}
+        - /users/{userID}
+        - /categories/{categoryID}/subcategories/{subCategoryID}
+        - /customers/{customerID}/orders/{orderID}
         egress:
         - /orders
+        - /orders/{orderID}/items/{itemID}
         - /categories
         - /users
 ```
@@ -57,20 +58,19 @@ spec:
 #### Features
 
 - `pathNormalization.enabled` users can enable or disable path normalization through a straightforward boolean flag.
-- `ingress/egress` users can specify paths for ingress and egress traffic.
-- The path matching will use the same patterns as the Go standard library (see https://pkg.go.dev/net/http#hdr-Patterns), ensuring reliable and well-supported path normalization.
-- Non-matched paths will added to a catch all bucket, ensuring that cardinality doesn't grow uncontrolled.
+- `pathNormalization.ingress/pathNormalization.egress` users can specify paths for ingress and egress path matching.
 
+The path matching will use the same patterns as the Go standard library (see https://pkg.go.dev/net/http#hdr-Patterns), ensuring reliable and well-supported path normalization.
 
-This Path Normalization API empowers users that relly on the metrics and observability scrapped from low cardinality that will soon be the default, providing a controlled means to manage path cardinality. Those indifferent may opt for low cardinality, while legacy high cardinality mode remains available for alternative needs.
+When the increasedCardinality flag is set to false (default in 1.14), non-matched paths are transformed into a catch-all bucket to control and limit cardinality, preventing unbounded growth. On the other hand, when increasedCardinality is true, non-matched paths are passed through as they normally would be, allowing for potentially higher cardinality but preserving the original path data. This is the main difference in the feature behavior when used with low versus high cardinality.
+
+This Path Normalization API empowers users that rely on the metrics and observability scrapped from low cardinality that will soon be the default, providing a controlled means to manage path cardinality. Those indifferent may opt for low cardinality, while legacy high cardinality mode remains available for alternative needs.
 
 ### Acceptance Criteria
 
 - The Path Normalization API is successfully integrated into the Dapr runtime, allowing users to enable/disable path normalization via configuration.
 
 ## Completion Checklist
-
-What changes or actions are required to make this proposal complete? Some examples:
 
 - [ ] Implementation in daprd
 - [ ] API documentation
