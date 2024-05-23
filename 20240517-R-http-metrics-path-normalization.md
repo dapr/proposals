@@ -55,6 +55,75 @@ spec:
         - /users
 ```
 
+##### Examples
+
+Examples of how the Path Normalization API can be used to normalize metrics. The examples compare the metric `dapr_http_server_request_count` with the possible configuration combinations: low and high cardinality, with and without path normalization.
+
+- Low Cardinality Without Path Normalization
+
+
+```yaml
+http:
+  increasedCardinality: false
+  pathNormalization:
+    enabled: false
+```
+
+```
+dapr_http_server_request_count{app_id="ping",method="InvokeService/ping",status="200"} 5
+```
+- Low Cardinality With Path Normalization
+
+```yaml
+http:
+  increasedCardinality: false
+  pathNormalization:
+    enabled: true
+    ingress:
+    - /orders/{orderID}
+    egress:
+    - /orders/{orderID}
+```
+
+```
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID}",status="200"} 4
+dapr_http_server_request_count{app_id="ping",method="GET",path="/unmatchedpath",status="200"} 1
+```
+
+- High Cardinality Without Path Normalization
+
+```yaml
+http:
+  increasedCardinality: true
+  pathNormalization:
+    enabled: false
+```
+
+```
+dapr_http_server_request_count{app_id="ping",method="GET",path="/items/123456",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/1234",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/12345",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/123456",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/1234567",status="200"} 1
+```
+
+- High Cardinality With Path Normalization
+
+```yaml
+http:
+  increasedCardinality: true
+  pathNormalization:
+    enabled: true
+    ingress:
+    - /orders/{orderID}
+    egress:
+    - /orders/{orderID}
+```
+
+```
+dapr_http_server_request_count{app_id="ping",method="GET",path="/items/123456",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID}",status="200"} 4
+```
 #### Features
 
 - `pathNormalization.enabled` users can enable or disable path normalization through a straightforward boolean flag.
@@ -74,4 +143,5 @@ This Path Normalization API empowers users that rely on the metrics and observab
 
 - [ ] Implementation in daprd
 - [ ] API documentation
+- [ ] Integration, E2E tests
 
