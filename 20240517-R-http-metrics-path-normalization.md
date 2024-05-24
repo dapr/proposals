@@ -42,7 +42,6 @@ spec:
     http:
       increasedCardinality: true
       pathNormalization:
-        enabled: true/false
         ingress:
         - /orders/{orderID}/items/{itemID}
         - /users/{userID}
@@ -65,8 +64,6 @@ Examples of how the Path Normalization API can be used to normalize metrics. The
 ```yaml
 http:
   increasedCardinality: false
-  pathNormalization:
-    enabled: false
 ```
 
 ```
@@ -78,7 +75,6 @@ dapr_http_server_request_count{app_id="ping",method="InvokeService/ping",status=
 http:
   increasedCardinality: false
   pathNormalization:
-    enabled: true
     ingress:
     - /orders/{orderID}
     egress:
@@ -95,8 +91,6 @@ dapr_http_server_request_count{app_id="ping",method="GET",path="/unmatchedpath",
 ```yaml
 http:
   increasedCardinality: true
-  pathNormalization:
-    enabled: false
 ```
 
 ```
@@ -113,7 +107,6 @@ dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/1234567"
 http:
   increasedCardinality: true
   pathNormalization:
-    enabled: true
     ingress:
     - /orders/{orderID}
     egress:
@@ -126,7 +119,6 @@ dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID
 ```
 #### Features
 
-- `pathNormalization.enabled` users can enable or disable path normalization through a straightforward boolean flag.
 - `pathNormalization.ingress/pathNormalization.egress` users can specify paths for ingress and egress path matching.
 
 The path matching will use the same patterns as the Go standard library (see https://pkg.go.dev/net/http#hdr-Patterns), ensuring reliable and well-supported path normalization.
