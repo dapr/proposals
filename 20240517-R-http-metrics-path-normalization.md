@@ -12,7 +12,7 @@ This is a design proposal to implement a new opt-in API for path normalization w
 
 In [#6723](https://github.com/dapr/dapr/issues/6723), Dapr reduced the cardinality of its HTTP metrics in order to address memory issues users reported and restrain unbounded path cardinality which posed as a security threat. This change introduced two cardinality modes (high/low) controlled by the `increasedCardinality` flag.
 
-The caveat with low cardinality is that it dropped paths since they were one of the sources for the high cardinality. While this is a reasonable approach it leads in the loss of important data needed for monitoring, performance analysis, and troubleshooting. To address this we opened [#7719](https://github.com/dapr/dapr/issues/7719).
+The caveat with low cardinality is that it dropped paths since they were one of the sources for the high cardinality. While this is a reasonable approach, it leads in the loss of important data needed for monitoring, performance analysis, and troubleshooting. To address this, we opened [#7719](https://github.com/dapr/dapr/issues/7719).
 
 This proposal introduces an opt-in API that allows users to define the paths that matter the most, effectively normalizing metrics without relying on regex's, which are known to be CPU-intensive.
 
@@ -23,11 +23,11 @@ With this API, users will be able to configure path normalization through a simp
 ### Related issues 
 
 Initial low cardinality issue: [#6723](https://github.com/dapr/dapr/issues/6723)
-Issue related with low cardinality dropped metrics data:  [#7719](https://github.com/dapr/dapr/issues/7719)
+Issue related with low cardinality dropped metrics data: [#7719](https://github.com/dapr/dapr/issues/7719)
 
 ## Expectations and alternatives
 
-The proposed solution adds value to users observability without compromising security and memory usage. The API is designed to be simple to configure, allowing users to configure the paths they care about. We considered other regex-based solutions but these are known to be CPU-intensive and can lead to performance degradation.
+The proposed solution adds value to users' observability without compromising security and memory usage. The API is designed to be simple to configure, allowing users to configure the paths they care about. We considered other regex-based solutions but these are known to be CPU-intensive and can lead to performance degradation.
 
 ## Implementation Details
 
