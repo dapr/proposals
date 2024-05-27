@@ -83,7 +83,7 @@ http:
 
 ```
 dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID}",status="200"} 4
-dapr_http_server_request_count{app_id="ping",method="GET",path="/unmatchedpath",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="_",status="200"} 1
 ```
 
 - High Cardinality Without Path Normalization
