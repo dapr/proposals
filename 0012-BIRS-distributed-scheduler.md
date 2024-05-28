@@ -5,7 +5,7 @@
     * Yaron Schneider (@yaron2)
     * Artur Souza (@artursouza)
 * State: Ready for Review
-* Updated: 2023-11-02
+* Updated: 2024-05-28
 
 ## Overview
 
@@ -70,6 +70,7 @@ using the new Dapr Scheduler Building Block.
 
 Example JSON (shown below) that you can use to schedule a job by making a request to `http://localhost:<daprPort>/v1.0/job/schedule/prd-db-backup`. This request schedules a job named `prd-db-backup` to run daily for the purpose of performing a database backup. The `@daily` schedule specification indicates that the job will run once a day, specifically at midnight (for more details, refer to the Schedule table below).
 
+Note: This is an example to illustrate intent. The fields are purposeful for this example, and data can take any form for a job. 
 ```Json
 {
   "schedule": "@daily",
@@ -171,6 +172,8 @@ func main() {
 
 ##### Actor Reminders
 
+The Scheduler Service will be deployed by default. However, for users to use the Scheduler Service for actor reminders, they will need to explicitly opt in via a preview feature.
+
 The interval functionality of the Actor Reminder is similar to the job schedule. With Actor Reminders, a user can specify:
 ```json
 {
@@ -211,7 +214,7 @@ ISO 8601 duration format. Example: PT2H30M
 
 ##### Schedule
 
-We will be using [this library](https://github.com/Scalingo/go-etcd-cron/blob/master/doc.go), and will support the following `schedule` format.
+We will be using [this library](https://github.com/diagridio/go-etcd-cron), and will support the following `schedule` format.
 
 A cron expression, represents a set of times, using 6 space-separated fields.
 
@@ -277,11 +280,11 @@ service Dapr {
 // Create and schedule a job
 rpc ScheduleJob(ScheduleJobRequest) returns (google.protobuf.Empty) {}
 
+// Gets a scheduled job
+rpc GetJob(GetJobRequest) returns (GetJobResponse) {}
+
 // Delete a job
 rpc DeleteJob(DeleteJobRequest) returns (google.protobuf.Empty) {}
-
-// Get a job
-rpc GetJob(GetJobRequest) returns (GetJobResponse) {}
 
 // List all jobs by app
 rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
@@ -290,56 +293,48 @@ rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
 
 // Job is the definition of a job.
 message Job {
-    // The unique name for the job.
-    string name = 1;
+  // The unique name for the job.
+  string name = 1;
 
-    // The schedule for the job.
-    string schedule = 2;
+  // The schedule for the job.
+  optional string schedule = 2;
 
-    // Job data.
-    google.protobuf.Any data = 3;
+  // Optional: jobs with fixed repeat counts (accounting for Actor Reminders).
+  optional uint32 repeats = 3;
 
-    // Optional: jobs with fixed repeat counts (accounting for Actor Reminders).
-    int32 repeats = 4;
+  // Optional: sets time at which or time interval before the callback is invoked for the first time.
+  optional string due_time = 4;
 
-    // Optional: sets time at which or time interval before the callback is invoked for the first time.
-    string due_time = 5;
+  // Optional: Time To Live to allow for auto deletes (accounting for Actor Reminders).
+  optional string ttl = 5;
 
-    // Optional: Time To Live to allow for auto deletes (accounting for Actor Reminders).
-    string ttl = 6;
+  // Job data.
+  google.protobuf.Any data = 6;
 }
-
-// rpc ScheduleJob(ScheduleJobRequest) returns (google.protobuf.Empty) {}
 
 // ScheduleJobRequest is the message to create/schedule the job.
 message ScheduleJobRequest {
-    // The job details.
-    Job job = 1;
+  // The job details.
+  Job job = 1;
 }
 
-// rpc DeleteJob(DeleteJobRequest) returns (google.protobuf.Empty) {}
+// GetJobRequest is the message to retrieve a job.
+message GetJobRequest {
+  // The name of the job.
+  string name = 1;
+}
+
+// GetJobResponse is the message's response for a job retrieved.
+message GetJobResponse {
+  // The job details.
+  Job job = 1;
+}
 
 // DeleteJobRequest is the message to delete the job by name.
 message DeleteJobRequest {
-    // The name of the job.
-    string name = 1;
+  // The name of the job.
+  string name = 1;
 }
-
-// rpc GetJob(GetJobRequest) returns (GetJobResponse) {}
-
-// GetJobRequest is the message to get the job by name.
-message GetJobRequest {
-    // The name of the job.
-    string name = 1;
-}
-
-// GetJobResponse is the response message to convey the job.
-message GetJobResponse {
-    // The job details.
-    Job job = 1;
-}
-
-// rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
 
 // ListJobsRequest is the message to list jobs by app_id.
 message ListJobsRequest {
@@ -359,80 +354,211 @@ message ListJobsResponse {
 For the daprd sidecar to Scheduler Service communication, 
 ![Scheduler APIs (SideCar Facing)](./resources/0004-BIRS-distributed-scheduler/sidecarToSchedulerComm.png)
 
-We will use the same exact protos from the Public Dapr API, but inside a **new**: `dapr/proto/scheduler/scheduler.proto`. However, the one difference will be in the `Job message`, where we will add:
+We will use the same exact protos from the Public Dapr API, but inside a **new**: `dapr/proto/scheduler/scheduler.proto`.
+The Schedule/Get/Delete job(s) will be performed via a unary call to the Scheduler Service.
 
-```proto
-    // Job is the definition of a job.
-    message Job {
-
-        daprv1.Job job = 1;
-
-        // Namespace of the job.
-        string namespace = 2;
-
-        // The metadata associated with the job.
-        // The sidecar will create the unique `key` for storing data in the state store and pass the generated `key` along to the scheduler service for data lookup upon ‘trigger’ time later on. 
-        // The sidecar will also add metadata in order to know whether this job is registered for an actor. This is needed, as the routing mechanism for actors is different for the callback.
-        map<string,string> metadata = 3;
-    }
-```
-
-
-To allow for the daprd sidecar to register itself with the Scheduler Service upon startup, there will be a new `register` API in `dapr/proto/scheduler/scheduler.proto` with the following:
-
-```proto
-// This will allow for communication between the daprd sidecar and the Scheduler Service. (daprd sidecar -> Scheduler Service)
-service Scheduler {
-
-    ...<same user-facing protos defined above>...
-
-    // Allow for the daprd sidecar to register with a control plane Scheduler Service
-    rpc Register(RegisterRequest) returns (google.protobuf.Empty) {}
-}
-
-// RegisterRequest is the message to register a daprd sidecar with a control plane service. 
-message RegisterRequest {
-    // The id of the application (app_id). This is used as the key in etcd for the Scheduler Service.
-    string app_id = 1;
-
-    // The namespace.
-    string namespace = 2;
-
-    // The hostname of the daprd sidecar.
-    string hostname = 3;
-
-    // The port of the daprd sidecar.
-    int32 port = 4;
-}
-```
-
-Alternatively, there can be a streaming connection between the daprd sidecar and the Scheduler Service.
+There is a bidirectional streaming connection between the daprd sidecar and the Scheduler Service to allow for the acknowledgment of successfully triggered jobs.
 
 ###### Scheduler Service APIs
 
-In a **new** `dapr/proto/scheduler/scheduler_callback.proto`, the Scheduler Service will have a 'callback' to the app in which to fulfill the job trigger execution orchestration (ie. send back the data to the app at the time of its trigger). 
+In the **new** `dapr/proto/scheduler/scheduler.proto`, the daprd sidecar upon startup will establish a streaming connection with the Scheduler Service such that at the trigger time for a job the Scheduler Service will send that job to the daprd sidecar which is watching for jobs. Then the daprd sidecar will send the job to the app sending the `WatchJobsResponse` back to the Scheduler.
+
+![WatchJobsFLow](./resources/0004-BIRS-distributed-scheduler/watchJobsFlow.png)
 
 ```proto
-// This is intended for the Scheduler Service to call back to the daprd sidecar at the time of the job schedule... ie it's trigger time.
-service SchedulerCallback {
-
-    // Callback RPC for job schedule being at 'trigger' time
-    rpc TriggerJob(TriggerRequest) returns (google.protobuf.Empty) {}
+service Scheduler {
+	// ScheduleJob is used by the daprd sidecar to schedule a job.
+	rpc ScheduleJob(ScheduleJobRequest) returns (ScheduleJobResponse) {}
+	
+	// Get a job
+	rpc GetJob(GetJobRequest) returns (GetJobResponse) {}
+	
+	// DeleteJob is used by the daprd sidecar to delete a job.
+	rpc DeleteJob(DeleteJobRequest) returns (DeleteJobResponse) {}
+	
+	// WatchJobs is used by the daprd sidecar to connect to the Scheduler
+	// service to watch for jobs triggering back.
+	rpc WatchJobs(stream WatchJobsRequest) returns (stream WatchJobsResponse) {}
 }
 
-// TriggerRequest is the message request to convey that the job is at its 'trigger' time. 
-message TriggerRequest {
-    // The job. 
-    Job job = 1; 
 
-    // The metadata associated with the job.
-    // This can contain the generated `key` for the optional state store when the daprd sidecar needs to lookup the entire data from a state store.
-    // The sidecar will use the metadata in order to know whether this job is registered for an actor. This is needed, as the routing mechanism for actors is different for the callback.
-    map<string,string> metadata = 2;
+message Job {
+  // The schedule for the job.
+  optional string schedule = 1;
+
+  // Optional: jobs with fixed repeat counts (accounting for Actor Reminders).
+  optional uint32 repeats = 2;
+
+  // Optional: sets time at which or time interval before the callback is invoked for the first time.
+  optional string due_time = 3;
+
+  // Optional: Time To Live to allow for auto deletes (accounting for Actor Reminders).
+  optional string ttl = 4;
+
+  // Job data.
+  google.protobuf.Any data = 5;
+}
+
+// TypeJob is the message used by the daprd sidecar to schedule a job
+// from an App.
+message TypeJob {}
+
+// TypeActorReminder is the message used by the daprd sidecar to
+// schedule a job from an Actor Reminder.
+message TypeActorReminder {
+  // id is the actor ID.
+	string id = 1;
+
+  // type is the actor type.
+	string type = 2;
+}
+
+// JobMetadataType holds the typed metadata associated with the job for
+// different origins.
+message JobMetadataType {
+  oneof type {
+    TypeJob job = 1;
+    TypeActorReminder actor = 2;
+  }
+}
+
+// JobMetadata is the message used by the daprd sidecar to schedule a
+// job.
+message JobMetadata {
+  // app_id is the App ID of the requester.
+	string app_id = 1;
+
+  // namespace is the namespace of the requester.
+  string namespace = 2;
+
+  // type is the type of the job.
+  JobMetadataType type = 3;
+}
+
+// WatchJobsRequest is the message used by the daprd sidecar to connect to the
+// Scheduler and send Job process results.
+message WatchJobsRequest {
+  oneof watch_job_request_type {
+    WatchJobsRequestInitial initial = 1;
+    WatchJobsRequestResult result = 2;
+  }
+}
+
+// WatchJobsRequestInitial is the initial request to start watching for jobs.
+message WatchJobsRequestInitial {
+  // app_id is the App ID of the requester.
+  string app_id = 1;
+
+  // namespace is the namespace of the requester.
+  string namespace = 2;
+
+  // actorTypes is the optional list of actor types to watch for.
+  repeated string actorTypes = 3;
+}
+
+// WatchJobsRequestResult is the result of a job execution to allow the job to
+// be marked as processed.
+message WatchJobsRequestResult {
+  // uuid is the uuid of the job that has finished processing.
+  uint64 uuid = 1;
+}
+
+// WatchJobsResponse is the response message to convey the details of a job.
+message WatchJobsResponse {
+  // name is the name of the job which was triggered.
+  string name = 1;
+
+  // uuid is the uuid of the job trigger event which should be sent back from
+  // the client to be marked as processed.
+  uint64 uuid = 2;
+
+	// Job data.
+	google.protobuf.Any data = 3;
+
+	// The metadata associated with the job.
+	JobMetadata metadata = 4;
+}
+
+message ScheduleJobRequest {
+  // name is the name of the job to create.
+  string name = 1;
+
+	// The job to be scheduled.
+	Job job = 2;
+
+	// The metadata associated with the job.
+	JobMetadata metadata = 3;
+}
+
+message ScheduleJobResponse {
+	// Empty as of now
+}
+
+// GetJobRequest is the message used by the daprd sidecar to delete or get a job.
+message GetJobRequest {
+  // name is the name of the job.
+	string name = 1;
+
+	// The metadata associated with the job.
+	JobMetadata metadata = 2;
+}
+
+// GetJobResponse is the response message to convey the details of a job.
+message GetJobResponse {
+  // The job to be scheduled.
+	Job job = 1;
+}
+
+// DeleteJobRequest is the message used by the daprd sidecar to delete or get a job.
+message DeleteJobRequest {
+	string name = 1;
+
+	// The metadata associated with the job.
+	JobMetadata metadata = 2;
+}
+
+message DeleteJobResponse {
+	// Empty as of now
 }
 ```
 
-![CallBack](./resources/0004-BIRS-distributed-scheduler/callback.png)
+To allow for the triggered job to be sent back to any instance of the same app id that scheduled the job, we will add:
+```proto
+// AppCallback V1 allows user application to interact with Dapr runtime.
+// User application needs to implement AppCallback service if it needs to
+// receive message from dapr runtime.
+service AppCallback {
+...
+  // Sends job back to the app's endpoint at trigger time.
+  rpc OnJobEvent (JobEventRequest) returns (JobEventResponse);
+}
+
+message JobEventRequest {
+  // Job name.
+  string name = 1;
+
+  // Job data to be sent back to app.
+  google.protobuf.Any data = 2;
+
+  // Required. method is a method name which will be invoked by caller.
+  string method = 3;
+
+  // The type of data content.
+  //
+  // This field is required if data delivers http request body
+  // Otherwise, this is optional.
+  string content_type = 4;
+
+  // HTTP specific fields if request conveys http-compatible request.
+  //
+  // This field is required for http-compatible request. Otherwise,
+  // this field is optional.
+  common.v1.HTTPExtension http_extension = 5;
+}
+
+// JobEventResponse is the response from the app when a job is triggered.
+message JobEventResponse {}
+```
 
 ### Scheduler Service
 
@@ -444,7 +570,7 @@ To guarantee we don't have several Scheduler Service instances firing off the sa
 
 ### CLI
 
-`dapr schedule <name> –schedule “@hourly” –data “<cloud-event-json>”`
+`dapr job schedule --name=<name> -–schedule=“@hourly” -–data=“<data>”`
 
 ### Implications
 
