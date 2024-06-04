@@ -126,7 +126,7 @@ func main() {
 		Job:          job,
 	}
 
-    err = client.ScheduleJob(context.Background(), scheduleJobRequest)
+    err = client.ScheduleJobAlpha1(context.Background(), scheduleJobRequest)
 	if err != nil {
 		fmt.Printf("Error scheduling job: %v\n", err)
 	}
@@ -136,7 +136,7 @@ func main() {
 		Name: "prd-db-backup",
 	}
 
-	response, err := client.GetJob(context.Background(), getJobRequest)
+	response, err := client.GetJobAlpha1(context.Background(), getJobRequest)
 	if err != nil {
 		fmt.Printf("Error getting job: %v\n", err)
 	} else {
@@ -149,7 +149,8 @@ func main() {
 		AppID: "your-app-id",
 	}
 
-	listResponse, err := client.ListJobs(context.Background(), listJobsRequest)
+	// List to be added after 1.14 release
+	listResponse, err := client.ListJobsAlpha1(context.Background(), listJobsRequest)
 	if err != nil {
 		fmt.Printf("Error listing jobs: %v\n", err)
 	} else {
@@ -162,7 +163,7 @@ func main() {
 		Name: "prd-db-backup",
 	}
 
-	err = client.DeleteJob(context.Background(), deleteJobRequest)
+	err = client.DeleteJobAlpha1(context.Background(), deleteJobRequest)
 	if err != nil {
 		fmt.Printf("Error deleting job: %v\n", err)
 	}
@@ -254,19 +255,19 @@ Examples of how a user's `schedule` may look:
 
 - Create a scheduled job
     - POST
-    - http://localhost:{daprPort}/v1.0/job/schedule/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/job/schedule/{name}
 
 - Delete a specific job by name
     - DELETE 
-    - http://localhost:{daprPort}/v1.0/job/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/job/{name}
 
 - Get a specific job by name
     - GET
-    - http://localhost:{daprPort}/v1.0/job/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/job/{name}
 
 - List all jobs for an application
     - GET
-    - http://localhost:{daprPort}/v1.0/jobs/{app_id}
+    - http://localhost:{daprPort}/v1.0-alpha1/jobs/{app_id}
 
 ##### gRPC
 
@@ -278,16 +279,16 @@ Examples of how a user's `schedule` may look:
 service Dapr {
 …
 // Create and schedule a job
-rpc ScheduleJob(ScheduleJobRequest) returns (google.protobuf.Empty) {}
+rpc ScheduleJobAlpha1(ScheduleJobRequest) returns (google.protobuf.Empty) {}
 
 // Gets a scheduled job
-rpc GetJob(GetJobRequest) returns (GetJobResponse) {}
+rpc GetJobAlpha1(GetJobRequest) returns (GetJobResponse) {}
 
 // Delete a job
-rpc DeleteJob(DeleteJobRequest) returns (google.protobuf.Empty) {}
+rpc DeleteJobAlpha1(DeleteJobRequest) returns (google.protobuf.Empty) {}
 
 // List all jobs by app
-rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
+rpc ListJobsAlpha1(ListJobsRequest) returns (ListJobsResponse) {}
 }
 
 
@@ -524,7 +525,7 @@ message DeleteJobResponse {
 
 To allow for the triggered job to be sent back to any instance of the same app id that scheduled the job, we will add:
 ```proto
-// AppCallback V1 allows user application to interact with Dapr runtime.
+// AppCallback allows user application to interact with Dapr runtime.
 // User application needs to implement AppCallback service if it needs to
 // receive message from dapr runtime.
 service AppCallback {
