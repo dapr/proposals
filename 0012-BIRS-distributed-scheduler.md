@@ -400,40 +400,40 @@ message Job {
   google.protobuf.Any data = 5;
 }
 
-// TypeJob is the message used by the daprd sidecar to schedule a job
+// KindJob is the message used by the daprd sidecar to schedule a job
 // from an App.
-message TypeJob {}
+message KindJob {}
 
-// TypeActorReminder is the message used by the daprd sidecar to
+// KindActorReminder is the message used by the daprd sidecar to
 // schedule a job from an Actor Reminder.
-message TypeActorReminder {
+message KindActorReminder {
   // id is the actor ID.
-	string id = 1;
+  string id = 1;
 
   // type is the actor type.
-	string type = 2;
+  string type = 2;
 }
 
-// JobMetadataType holds the typed metadata associated with the job for
+// JobMetadataKind holds the typed metadata associated with the job for
 // different origins.
-message JobMetadataType {
-  oneof type {
-    TypeJob job = 1;
-    TypeActorReminder actor = 2;
+message JobMetadataKind {
+  oneof kind {
+    KindJob job = 1;
+    KindActorReminder actor = 2;
   }
 }
 
-// JobMetadata is the message used by the daprd sidecar to schedule a
+// JobMetadata is the message used by the daprd sidecar to schedule/get/delete a
 // job.
 message JobMetadata {
   // app_id is the App ID of the requester.
-	string app_id = 1;
+  string app_id = 1;
 
   // namespace is the namespace of the requester.
   string namespace = 2;
 
-  // type is the type of the job.
-  JobMetadataType type = 3;
+  // kind is the type of the job.
+  JobMetadataKind kind = 3;
 }
 
 // WatchJobsRequest is the message used by the daprd sidecar to connect to the
@@ -453,8 +453,8 @@ message WatchJobsRequestInitial {
   // namespace is the namespace of the requester.
   string namespace = 2;
 
-  // actorTypes is the optional list of actor types to watch for.
-  repeated string actorTypes = 3;
+  // actor_types is the optional list of actor types to watch for.
+  repeated string actor_types = 3;
 }
 
 // WatchJobsRequestResult is the result of a job execution to allow the job to
@@ -473,53 +473,53 @@ message WatchJobsResponse {
   // the client to be marked as processed.
   uint64 uuid = 2;
 
-	// Job data.
-	google.protobuf.Any data = 3;
+  // Job data.
+  google.protobuf.Any data = 3;
 
-	// The metadata associated with the job.
-	JobMetadata metadata = 4;
+  // The metadata associated with the job.
+  JobMetadata metadata = 4;
 }
 
 message ScheduleJobRequest {
   // name is the name of the job to create.
   string name = 1;
 
-	// The job to be scheduled.
-	Job job = 2;
+  // The job to be scheduled.
+  Job job = 2;
 
-	// The metadata associated with the job.
-	JobMetadata metadata = 3;
+  // The metadata associated with the job.
+  JobMetadata metadata = 3;
 }
 
 message ScheduleJobResponse {
-	// Empty as of now
+  // Empty as of now
 }
 
 // GetJobRequest is the message used by the daprd sidecar to delete or get a job.
 message GetJobRequest {
   // name is the name of the job.
-	string name = 1;
+  string name = 1;
 
-	// The metadata associated with the job.
-	JobMetadata metadata = 2;
+  // The metadata associated with the job.
+  JobMetadata metadata = 2;
 }
 
 // GetJobResponse is the response message to convey the details of a job.
 message GetJobResponse {
   // The job to be scheduled.
-	Job job = 1;
+  Job job = 1;
 }
 
 // DeleteJobRequest is the message used by the daprd sidecar to delete or get a job.
 message DeleteJobRequest {
-	string name = 1;
+  string name = 1;
 
-	// The metadata associated with the job.
-	JobMetadata metadata = 2;
+  // The metadata associated with the job.
+  JobMetadata metadata = 2;
 }
 
 message DeleteJobResponse {
-	// Empty as of now
+  // Empty as of now
 }
 ```
 
