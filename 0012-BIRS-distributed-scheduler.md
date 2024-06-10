@@ -382,7 +382,6 @@ service Scheduler {
 	rpc WatchJobs(stream WatchJobsRequest) returns (stream WatchJobsResponse) {}
 }
 
-
 message Job {
   // The schedule for the job.
   optional string schedule = 1;
@@ -400,13 +399,13 @@ message Job {
   google.protobuf.Any data = 5;
 }
 
-// KindJob is the message used by the daprd sidecar to schedule a job
+// TargetJob is the message used by the daprd sidecar to schedule a job
 // from an App.
-message KindJob {}
+message TargetJob {}
 
-// KindActorReminder is the message used by the daprd sidecar to
+// TargetActorReminder is the message used by the daprd sidecar to
 // schedule a job from an Actor Reminder.
-message KindActorReminder {
+message TargetActorReminder {
   // id is the actor ID.
   string id = 1;
 
@@ -414,12 +413,12 @@ message KindActorReminder {
   string type = 2;
 }
 
-// JobMetadataKind holds the typed metadata associated with the job for
+// JobTargetMetadata holds the typed metadata associated with the job for
 // different origins.
-message JobMetadataKind {
-  oneof kind {
-    KindJob job = 1;
-    KindActorReminder actor = 2;
+message JobTargetMetadata {
+  oneof type {
+    TargetJob job = 1;
+    TargetActorReminder actor = 2;
   }
 }
 
@@ -432,8 +431,8 @@ message JobMetadata {
   // namespace is the namespace of the requester.
   string namespace = 2;
 
-  // kind is the type of the job.
-  JobMetadataKind kind = 3;
+  // target is the type of the job.
+  JobTargetMetadata target = 3;
 }
 
 // WatchJobsRequest is the message used by the daprd sidecar to connect to the
