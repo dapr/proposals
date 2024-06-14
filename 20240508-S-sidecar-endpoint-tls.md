@@ -1,8 +1,8 @@
 # Dapr endpoint env and TLS support in SDKs 
 
-* Author(s): Artur Souza (@artursouza)
+* Author(s): Artur Souza (@artursouza), Josh van Leeuwen (@JoshVanL)
 * State: Ready for Implementation
-* Updated: 06/27/2023
+* Updated: 05/08/2024
 
 ## Overview
 
@@ -90,6 +90,8 @@ myhost:1003?tls=true => port=1003 tls=true resolver=dns
 dns://myhost:1003?tls=true => port=1003 tls=true resolver=dns
 unix://my.sock => port=<no concept of port> tls=false resolver=unix
 unix://my.sock?tls=true => port=<no concept of port> tls=true resolver=unix
+http://myhost => port=80 tls=false resolver=dns
+https://myhost => port=443 tls=true resolver=dns
 ```
 
 #### Example of implementation
@@ -150,7 +152,7 @@ What changes or actions are required to make this proposal complete?
 | myhost:443                                                   | dns:myhost:443                            | myhost                            | 443  | FALSE  |                                                                             |
 | myhost:443?tls=false                                         | dns:myhost:443                            | myhost                            | 443  | FALSE  |                                                                             |
 | myhost:443?tls=true                                          | dns:myhost:443                            | myhost                            | 443  | TRUE   |                                                                             |
-| [http://myhost](http://myhost)                               | dns:myhost:443                            | myhost                            | 443  | FALSE  |                                                                             |
+| [http://myhost](http://myhost)                               | dns:myhost:80                             | myhost                            | 80   | FALSE  |                                                                             |
 | [http://myhost?tls=false](http://myhost?tls=false)           |                                           |                                   |      |        | the tls query parameter is not supported for http(s) endpoints: 'tls=false' |
 | [http://myhost?tls=true](http://myhost?tls=true)             |                                           |                                   |      |        | the tls query parameter is not supported for http(s) endpoints: 'tls=true'  |
 | [http://myhost:443](http://myhost:443)                       | dns:myhost:443                            | myhost                            | 443  | FALSE  |                                                                             |
@@ -182,7 +184,7 @@ What changes or actions are required to make this proposal complete?
 | dns:[2001:db8:1f70::999:de8:7648:6e8]:5000?abc=[]            |                                                            |                                   |      |       | Error: query parameters are not supported for gRPC endpoints: 'abc=[]'             |
 | dns://myauthority:53/[2001:db8:1f70::999:de8:7648:6e8]       | dns://myauthority:53/[2001:db8:1f70::999:de8:7648:6e8]:443 | [2001:db8:1f70::999:de8:7648:6e8] | 443  | FALSE |                                                                                    |
 | dns:[2001:db8:1f70::999:de8:7648:6e8]                        | dns:[2001:db8:1f70::999:de8:7648:6e8]:443 | [2001:db8:1f70::999:de8:7648:6e8] | 443  | FALSE  |                                                                             |
-| https://[2001:db8:1f70::999:de8:7648:6e8]                    | dns:[2001:db8:1f70::999:de8:7648:6e8]:443 | [2001:db8:1f70::999:de8:7648:6e8] | 443  | TRUE   |                                                                             |
+| https://[2001:db8:1f70::999:de8:7648:6e8]                    | dns:[2001:db8:1f70::999:de8:7648:6e8]:80  | [2001:db8:1f70::999:de8:7648:6e8] | 80   | TRUE   |                                                                             |
 | https://[2001:db8:1f70::999:de8:7648:6e8]:5000               | dns:[2001:db8:1f70::999:de8:7648:6e8]:5000                 | [2001:db8:1f70::999:de8:7648:6e8] | 5000 | TRUE  |                                                                                    |
 | host:5000/v1/dapr                                            |                                           |                                   |      |        | paths are not supported for gRPC endpoints: '/v1/dapr'                      |
 | host:5000/?a=1                                               |                                           |                                   |      |        | paths are not supported for gRPC endpoints: '/'                             |
