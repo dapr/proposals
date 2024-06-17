@@ -281,7 +281,7 @@ service Dapr {
 // Create and schedule a job
 rpc ScheduleJobAlpha1(ScheduleJobRequest) returns (google.protobuf.Empty) {}
 
-// Gets a scheduled job
+// Get a scheduled job
 rpc GetJobAlpha1(GetJobRequest) returns (GetJobResponse) {}
 
 // Delete a job
