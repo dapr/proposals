@@ -42,16 +42,10 @@ spec:
     http:
       increasedCardinality: true
       pathMatching:
-        ingress:
         - /orders/{orderID}/items/{itemID}
         - /users/{userID}
         - /categories/{categoryID}/subcategories/{subCategoryID}
         - /customers/{customerID}/orders/{orderID}
-        egress:
-        - /orders
-        - /orders/{orderID}/items/{itemID}
-        - /categories
-        - /users
 ```
 
 ##### Examples
@@ -75,15 +69,12 @@ dapr_http_server_request_count{app_id="ping",method="InvokeService/ping",status=
 http:
   increasedCardinality: false
   pathMatching:
-    ingress:
-    - /orders/{orderID}
-    egress:
     - /orders/{orderID}
 ```
 
 ```
 dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID}",status="200"} 4
-dapr_http_server_request_count{app_id="ping",method="GET",path="_",status="200"} 1
+dapr_http_server_request_count{app_id="ping",method="GET",path="",status="200"} 1
 ```
 
 - High Cardinality Without Path Matching
@@ -107,9 +98,6 @@ dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/1234567"
 http:
   increasedCardinality: true
   pathMatching:
-    ingress:
-    - /orders/{orderID}
-    egress:
     - /orders/{orderID}
 ```
 
@@ -119,7 +107,7 @@ dapr_http_server_request_count{app_id="ping",method="GET",path="/orders/{orderID
 ```
 #### Features
 
-- `pathMatching.ingress/pathMatching.egress` users can specify paths for ingress and egress path matching.
+- `pathMatching` where users can specify paths for path matching.
 
 The path matching will use the same patterns as the Go standard library (see https://pkg.go.dev/net/http#hdr-Patterns), ensuring reliable and well-supported path matching.
 
