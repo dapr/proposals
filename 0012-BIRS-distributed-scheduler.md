@@ -68,7 +68,7 @@ If a user would like to store their user associated data in a specific state sto
 Users will have a job they would like scheduled. For example, an application performs a daily backup of their database. This backup task should run every day at a specific time to ensure data integrity. The user calls to schedule their job
 using the new Dapr Scheduler Building Block.
 
-Example JSON (shown below) that you can use to schedule a job by making a request to `http://localhost:<daprPort>/v1.0/job/schedule/prd-db-backup`. This request schedules a job named `prd-db-backup` to run daily for the purpose of performing a database backup. The `@daily` schedule specification indicates that the job will run once a day, specifically at midnight (for more details, refer to the Schedule table below).
+Example JSON (shown below) that you can use to schedule a job by making a request to `http://localhost:<daprPort>/v1.0/schedule/jobs/prd-db-backup`. This request schedules a job named `prd-db-backup` to run daily for the purpose of performing a database backup. The `@daily` schedule specification indicates that the job will run once a day, specifically at midnight (for more details, refer to the Schedule table below).
 
 Note: This is an example to illustrate intent. The fields are purposeful for this example, and data can take any form for a job. 
 ```Json
@@ -255,19 +255,19 @@ Examples of how a user's `schedule` may look:
 
 - Create a scheduled job
     - POST
-    - http://localhost:{daprPort}/v1.0-alpha1/job/schedule/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/schedule/jobs/{name}
 
 - Delete a specific job by name
     - DELETE 
-    - http://localhost:{daprPort}/v1.0-alpha1/job/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/schedule/jobs/{name}
 
 - Get a specific job by name
     - GET
-    - http://localhost:{daprPort}/v1.0-alpha1/job/{name}
+    - http://localhost:{daprPort}/v1.0-alpha1/schedule/jobs/{name}
 
 - List all jobs for an application
     - GET
-    - http://localhost:{daprPort}/v1.0-alpha1/jobs/{app_id}
+    - http://localhost:{daprPort}/v1.0-alpha1/schedule/jobs?appId={app_id}
 
 ##### gRPC
 
