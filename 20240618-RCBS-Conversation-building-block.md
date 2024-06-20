@@ -22,18 +22,20 @@ This is an area where Dapr can help. We can offer an abstraction layer on those 
 Components in dapr/components-contrib are to be placed in the `conversation` folder and must implement the `Conversation` interface:
 
 ```go
-// Conversation offers an interface to perform low-level conversational operations
+// Converse offers an interface to perform low-level conversational operations
 type Conversation interface {
-    // Conversate one conversation
-    Conversate(
+    // Converse one conversation
+    Converse(
         // Context that can be used to cancel the running operation
-        ctx context.Context, 
+        ctx context.Context,
+        // Endpoint for model service
+        endpoint string,
         // Name of the model
         model_name string,
         // Inputs for the conversation, support multiple input in one time
         inputs []byte,
         // Parameters for all custom fields
-        parameters string,
+        parameters map[string]string,
         // Key of API token
         key string,
     ) (
@@ -57,17 +59,19 @@ In the Dapr gRPC APIs, we are extending the `runtime.v1.Dapr` service to add new
 // (Existing Dapr service)
 service Dapr {
   // Conversate.
-  rpc Conversate(ConversationRequest) returns (ConversationResponse);
+  rpc Converse(ConversationRequest) returns (ConversationResponse);
 }
 
 // ConversationRequest is the request object for Conversation.
 message ConversationRequest {
+  // Endpoint for the model service
+  string endpoint = 1; 
   // Name of the model
-  string model_name = 1;
+  string model_name = 2;
   // Inputs for the conversation, support multiple input in one time
-  map<string, string> inputs = 2;
+  map<string, string> inputs = 3;
   // Parameters for all custom fields
-  map<string, string> parameters = 3;
+  map<string, string> parameters = 4;
 }
 
 // ConversationResult is the result for one input.
@@ -75,7 +79,7 @@ message ConversationResult {
   // Result for the one conversation input
   string result = 1;
   // Parameters for all custom fields
-  map<string, string> parameters = 3;
+  map<string, string> parameters = 2;
 }
 
 // ConversationResponse is the response for Conversation.
@@ -89,6 +93,6 @@ message ConversationResponse {
 
 The HTTP APIs are same with the gRPC APIs：
 
-`POST /v1.0/conversation/[component]/conversate` -> Conversate
+`POST /v1.0/conversation/[component]/converse` -> Conversate
 
 > Note: URL will begin with `/v1.0-alpha1` while in preview
