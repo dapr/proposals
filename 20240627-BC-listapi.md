@@ -115,3 +115,10 @@ All supported SDKs should be updated to implement the List API. SDKs should offe
 Some of the state stores Dapr supports don’t provide the necessary capabilities for implementing the list API. For example, Memcached doesn’t provide a way to list keys,  Azure table storage can’t sort keys in descending order and so on. For those cases the list API will do a best effort to provide the closest functionality to the one defined in the API. The functionality will be specific to the data store and will be implemented on the component level.
 
 List API requests on state stores that don’t support the List API will result in errors.
+
+## Definitions:
+
+- **Listing**: The ability to retrieve a collection of items.
+- **Sorting**: The ability to sort the results based on one or more fields.
+- **Prefix Search**: The ability to search for items that start with a given prefix.
+- **Pagination**: The ability to paginate through items, typically using skip/limit or similar mechanisms.
