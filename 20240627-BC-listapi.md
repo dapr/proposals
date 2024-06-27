@@ -21,6 +21,33 @@ Developers can list keys by issuing an HTTP API call to the Dapr sidecar:
 GET /v1.0/state/:storeName/?prefix={prefix}&sorting={sorting}&page_limit={pageLimit}&page_token={pageToken}
 ```
 
+The `sorting` query parameter can accept one of the following values:
+- `default`
+- `asc`
+- `desc`
+
+
+The response will be a JSON object with the following structure:
+```json
+{
+    "keys": ["key1", "key2", "key3", "...", "keyN"],
+    "next_page_token": "nextTokenString"
+}
+```
+
+For example:  
+Request:
+```cURL
+GET /v1.0/state/myStateStore?prefix=user&sorting=asc&page_limit=3&page_token=user3
+```
+Response:
+```json
+{
+    "keys": ["user4", "user5", "user6"],
+    "next_page_token": "user6"
+}
+```
+
 ### gRPC
 
 Developers can also list keys by issuing a unary gRPC call
@@ -119,6 +146,10 @@ List API requests on state stores that don’t support the List API will result 
 ## Impact of the List API on Dapr state store components
 From the moment this proposal is accepted, all state store components will be required to implement the List API in order to get the "Stable" certification level.
 Components that are currently stable and for which the underlying state store does not support listing will not lose their stable status.
+
+## Performance and pricing implications
+Listing keys in big data sets, specially for partitioned databases, can be expensive in terms of both performance and cost. Often it would incur creating an index which will impact write performance, storage cost and sometimes even read performance.
+For the databases where this is a concern, we should offer an option to disable the List API on the component level.
 
 ## Definitions:
 
