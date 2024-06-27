@@ -116,6 +116,10 @@ Some of the state stores Dapr supports don’t provide the necessary capabilitie
 
 List API requests on state stores that don’t support the List API will result in errors.
 
+## Impact of the List API on Dapr state store components
+From the moment this proposal is accepted, all state store components will be required to implement the List API in order to get the "Stable" certification level.
+Components that are currently stable and for which the underlying state store does not support listing will not lose their stable status.
+
 ## Definitions:
 
 - **Listing**: The ability to retrieve a collection of items.
