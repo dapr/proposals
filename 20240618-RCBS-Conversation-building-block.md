@@ -64,21 +64,28 @@ service Dapr {
 
 // ConversationRequest is the request object for Conversation.
 message ConversationRequest {
-  // Endpoint for the model service
-  string endpoint = 1; 
-  // Name of the model
+  enum LoadBalancingPolicy {
+    // Round robin policy.
+    ROUNDROBIN = 0;
+  }
+
+  // Endpoints for the model service, co-work with load balanace policy.
+  repeated string endpoints = 1;
+  // Name of the model.
   string model_name = 2;
-  // Inputs for the conversation, support multiple input in one time
+  // Inputs for the conversation, support multiple input in one time.
   map<string, string> inputs = 3;
-  // Parameters for all custom fields
+  // Parameters for all custom fields.
   map<string, string> parameters = 4;
+  // Load balancing policy for endpoints.
+  LoadBalancingPolicy policy = 5;
 }
 
 // ConversationResult is the result for one input.
 message ConversationResult {
-  // Result for the one conversation input
+  // Result for the one conversation input.
   string result = 1;
-  // Parameters for all custom fields
+  // Parameters for all custom fields.
   map<string, string> parameters = 2;
 }
 
