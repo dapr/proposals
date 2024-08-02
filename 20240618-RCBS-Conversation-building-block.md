@@ -76,9 +76,11 @@ message ConversationRequest {
   // Inputs for the conversation, support multiple input in one time.
   repeated string inputs = 3;
   // Parameters for all custom fields.
-  map<string, string> parameters = 4;
+  repeated google.protobuf.Any parameters = 4;
+  // Key of API token
+  string key = 5;
   // Load balancing policy for endpoints.
-  LoadBalancingPolicy policy = 5;
+  LoadBalancingPolicy policy = 6;
 }
 
 // ConversationResult is the result for one input.
@@ -86,7 +88,7 @@ message ConversationResult {
   // Result for the one conversation input.
   string result = 1;
   // Parameters for all custom fields.
-  map<string, string> parameters = 2;
+  repeated google.protobuf.Any parameters = 2;
 }
 
 // ConversationResponse is the response for Conversation.
