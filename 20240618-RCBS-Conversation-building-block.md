@@ -74,7 +74,7 @@ message ConversationRequest {
   // Name of the model.
   string model_name = 2;
   // Inputs for the conversation, support multiple input in one time.
-  map<string, string> inputs = 3;
+  repeated string inputs = 3;
   // Parameters for all custom fields.
   map<string, string> parameters = 4;
   // Load balancing policy for endpoints.
