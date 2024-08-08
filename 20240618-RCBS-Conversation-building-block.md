@@ -39,6 +39,9 @@ message ConversationRequest {
   // Parameters for all custom fields.
   repeated google.protobuf.Any parameters = 2;
 
+  // The name of Coverstaion component
+  string name = 3;
+
   // The metadata passing to conversation components
 
   enum LoadBalancingPolicy {
@@ -47,13 +50,13 @@ message ConversationRequest {
   }
 
   // Endpoints for the model service, co-work with load balanace policy.
-  repeated string endpoints = 3;
+  repeated string endpoints = 4;
   // Name of the model.
-  string model = 4;
+  string model = 5;
   // Key of API token
-  string key = 5;
+  string key = 6;
   // Load balancing policy for endpoints.
-  LoadBalancingPolicy policy = 6;
+  LoadBalancingPolicy policy = 7;
 }
 
 // ConversationResult is the result for one input.
