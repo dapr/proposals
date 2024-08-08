@@ -17,36 +17,6 @@ For startups and communities, they need to implement the popular APIs as soon as
 
 This is an area where Dapr can help. We can offer an abstraction layer on those APIs.
 
-## Components
-
-Components in dapr/components-contrib are to be placed in the `conversation` folder and must implement the `Conversation` interface:
-
-```go
-// Converse offers an interface to perform low-level conversational operations
-type Conversation interface {
-    // Converse one conversation
-    Converse(
-        // Context that can be used to cancel the running operation
-        ctx context.Context,
-        // Endpoint for model service
-        endpoint string,
-        // Name of the model
-        model_name string,
-        // Inputs for the conversation, support multiple input in one time
-        inputs []byte,
-        // Parameters for all custom fields
-        parameters map[string]string,
-        // Key of API token
-        key string,
-    ) (
-        // An array of conversation results.
-        []map[string]string outputs
-        // Error
-        err error,
-    )
-}
-```
-
 ## gRPC APIs
 
 In the Dapr gRPC APIs, we are extending the `runtime.v1.Dapr` service to add new methods:
@@ -59,24 +29,27 @@ In the Dapr gRPC APIs, we are extending the `runtime.v1.Dapr` service to add new
 // (Existing Dapr service)
 service Dapr {
   // Conversate.
-  rpc Converse(ConversationRequest) returns (ConversationResponse);
+  rpc Converse(stream ConversationRequest) returns (stream ConversationResponse);
 }
 
 // ConversationRequest is the request object for Conversation.
 message ConversationRequest {
+  // Inputs for the conversation, support multiple input in one time.
+  repeated string inputs = 1;
+  // Parameters for all custom fields.
+  repeated google.protobuf.Any parameters = 2;
+
+  // The metadata passing to conversation components
+
   enum LoadBalancingPolicy {
     // Round robin policy.
     ROUNDROBIN = 0;
   }
 
   // Endpoints for the model service, co-work with load balanace policy.
-  repeated string endpoints = 1;
+  repeated string endpoints = 3;
   // Name of the model.
-  string model_name = 2;
-  // Inputs for the conversation, support multiple input in one time.
-  repeated string inputs = 3;
-  // Parameters for all custom fields.
-  repeated google.protobuf.Any parameters = 4;
+  string model = 4;
   // Key of API token
   string key = 5;
   // Load balancing policy for endpoints.
@@ -103,5 +76,26 @@ message ConversationResponse {
 The HTTP APIs are same with the gRPC APIs：
 
 `POST /v1.0/conversation/[component]/converse` -> Conversate
+
+```json
+REQUEST = {
+  "metadata": {
+    "model": "gpt-4o",
+    "endpoint": "api.openai.com",
+    "key": "token-key"
+  },
+  "inputs": ["what is Dapr"],
+  "parameters": {},
+  "policy": 0,
+}
+
+RESPONSE  = {
+  "id": "123",
+  "outputs": {
+    "result": "Dapr is ...",
+    "parameters": {},
+  },
+}
+```
 
 > Note: URL will begin with `/v1.0-alpha1` while in preview
