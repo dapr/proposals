@@ -82,18 +82,15 @@ The HTTP APIs are same with the gRPC APIs：
 
 ```json
 REQUEST = {
-  "metadata": {
-    "model": "gpt-4o",
-    "endpoint": "api.openai.com",
-    "key": "token-key"
-  },
+  "model": "gpt-4o",
+  "endpoint": "api.openai.com",
+  "key": "token-key",
   "inputs": ["what is Dapr"],
   "parameters": {},
   "policy": 0,
 }
 
 RESPONSE  = {
-  "id": "123",
   "outputs": {
     "result": "Dapr is ...",
     "parameters": {},
