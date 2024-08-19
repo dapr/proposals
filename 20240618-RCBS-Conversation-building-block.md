@@ -17,6 +17,17 @@ For startups and communities, they need to implement the popular APIs as soon as
 
 This is an area where Dapr can help. We can offer an abstraction layer on those APIs.
 
+## Metadata
+
+```yaml
+
+key: # string
+model: # string
+endpoints: # []string
+loadBalancingPolicy: # string, support "ROUNDROBIN"
+
+```
+
 ## gRPC APIs
 
 In the Dapr gRPC APIs, we are extending the `runtime.v1.Dapr` service to add new methods:
@@ -34,29 +45,17 @@ service Dapr {
 
 // ConversationRequest is the request object for Conversation.
 message ConversationRequest {
-  // Inputs for the conversation, support multiple input in one time.
-  repeated string inputs = 1;
-  // Parameters for all custom fields.
-  repeated google.protobuf.Any parameters = 2;
-
   // The name of Coverstaion component
-  string name = 3;
-
-  // The metadata passing to conversation components
-
-  enum LoadBalancingPolicy {
-    // Round robin policy.
-    ROUNDROBIN = 0;
-  }
-
-  // Endpoints for the model service, co-work with load balanace policy.
-  repeated string endpoints = 4;
-  // Name of the model.
-  string model = 5;
-  // Key of API token
-  string key = 6;
-  // Load balancing policy for endpoints.
-  LoadBalancingPolicy policy = 7;
+  string name = 1;
+  // Inputs for the conversation, support multiple input in one time.
+  repeated string inputs = 2;
+  // Parameters for all custom fields.
+  repeated google.protobuf.Any parameters = 3;
+  // The metadata passing to converstion components
+  //
+  // metadata property:
+  // - key : the key of the message.
+  map<string, string> metadata = 4;
 }
 
 // ConversationResult is the result for one input.
@@ -82,18 +81,29 @@ The HTTP APIs are same with the gRPC APIs：
 
 ```json
 REQUEST = {
-  "model": "gpt-4o",
-  "endpoint": "api.openai.com",
-  "key": "token-key",
-  "inputs": ["what is Dapr"],
+    "metadata": {
+      "model": "gpt-4o",
+      "endpoint": "api.openai.com",
+      "key": "token-key",
+      "policy": "ROUNDROBIN",
+  },
+
+  "inputs": ["what is Dapr", "Why use Dapr"],
   "parameters": {},
-  "policy": 0,
+
 }
 
 RESPONSE  = {
   "outputs": {
-    "result": "Dapr is ...",
-    "parameters": {},
+    {
+       "result": "Dapr is distribution application runtime ...",
+       "parameters": {},
+    },
+    {
+       "result": "Dapr can help developers ...",
+       "parameters": {},
+    }
+
   },
 }
 ```
