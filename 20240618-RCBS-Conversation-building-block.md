@@ -17,15 +17,27 @@ For startups and communities, they need to implement the popular APIs as soon as
 
 This is an area where Dapr can help. We can offer an abstraction layer on those APIs.
 
-## Metadata
+## Component YAML
+
+A component can have it's own set of attributes, like in Dapr. For example:
 
 ```yaml
-
-key: # string
-model: # string
-endpoints: # []string
-loadBalancingPolicy: # string, support "ROUNDROBIN"
-
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: chatgpt4o
+spec:
+  type: conversation.chatgpt
+  version: v1
+  metadata:
+    - name: key
+      value: "bfnskdlgdhklhk53adfgsfnsgmtyqdghbid34891"
+    - name: model
+      value: "gpt-4o"
+    - name: endpoints
+      value: "us.api.openai.com,eu.api.openai.com"
+    - name: loadBalancingPolicy
+      value: "ROUNDROBIN"
 ```
 
 ## gRPC APIs
@@ -34,7 +46,7 @@ In the Dapr gRPC APIs, we are extending the `runtime.v1.Dapr` service to add new
 
 > Note: APIs will have "Alpha1" added while in preview
 
-> Note: The API token is stored in context
+> Note: The API token is stored in the component
 
 ```proto
 // (Existing Dapr service)
@@ -45,17 +57,14 @@ service Dapr {
 
 // ConversationRequest is the request object for Conversation.
 message ConversationRequest {
-  // The name of Coverstaion component
+  // The name of Conversation component
   string name = 1;
+  // Conversation context - the Id of an existing chat room (like in ChatGPT)
+  optional string conversationContext = 2;
   // Inputs for the conversation, support multiple input in one time.
-  repeated string inputs = 2;
+  repeated string inputs = 3;
   // Parameters for all custom fields.
-  repeated google.protobuf.Any parameters = 3;
-  // The metadata passing to converstion components
-  //
-  // metadata property:
-  // - key : the key of the message.
-  map<string, string> metadata = 4;
+  repeated google.protobuf.Any parameters = 4;
 }
 
 // ConversationResult is the result for one input.
@@ -68,8 +77,11 @@ message ConversationResult {
 
 // ConversationResponse is the response for Conversation.
 message ConversationResponse {
+  // Conversation context - the Id of an existing or newly created chat room (like in ChatGPT)
+  optional string conversationContext = 1;
+
   // An array of results.
-  repeated ConversationResult outputs = 1;
+  repeated ConversationResult outputs = 2;
 }
 ```
 
@@ -81,19 +93,13 @@ The HTTP APIs are same with the gRPC APIs：
 
 ```json
 REQUEST = {
-    "metadata": {
-      "model": "gpt-4o",
-      "endpoint": "api.openai.com",
-      "key": "token-key",
-      "policy": "ROUNDROBIN",
-  },
-
+  "conversationContext": "fb512b84-7a1a-4fb4-8bd2-ac7d2ec45984",
   "inputs": ["what is Dapr", "Why use Dapr"],
   "parameters": {},
-
 }
 
 RESPONSE  = {
+  "conversationContext": "fb512b84-7a1a-4fb4-8bd2-ac7d2ec45984",
   "outputs": {
     {
        "result": "Dapr is distribution application runtime ...",
