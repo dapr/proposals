@@ -2,7 +2,7 @@
 
 * Author(s): Mike Nguyen (@mikeee) - hey(at)mike.ee
 * State: RFC - Request for Comment / EARLY DRAFT
-* Updated: 2024-07-11
+* Updated: ~~2024-07-11~~ 2024-09-01
 
 ## Overview
 
@@ -72,7 +72,8 @@ building block - this has been partially tested through the query-API.
 
 ### Design
 
-TODO
+The APIs will need to be generic enough but provide a baseline level of
+functionality of 
 
 #### APIs
 
@@ -82,9 +83,26 @@ The protobufs will be extended:
 
 ```proto
 service Dapr {
-…
-// Create new documents
-rpc InsertSearchDocumentsAlpha1(InsertSearchDocumentsRequest) returns (InsertSearchDocumentsResponse) {}
+
+// Create a asearch document index.
+rpc CreateSearchIndexRequestIndexAlpha1(CreateSearchIndexRequest) returns
+(CreateSearchIndexResponse) {}
+
+// Get a search document index.
+rpc GetSearchIndexAlpha1(GetSearchIndexRequest) returns
+(GetSearchIndexResponse) {}
+
+// Delete a search document index.
+rpc DeleteSearchIndexAlpha1(DeleteSearchIndexRequest) returns
+(DeleteSearchIndexResponse) {}
+
+// Retrieves all search docuemnt indexes.
+rpc ListAllSearchIndexAlpha1(ListAllSearchIndexRequest) returns
+ListAllSearchIndexResponse) {}
+
+
+// Insert/Update new documents
+rpc UpdateSearchDocumentsAlpha1(IUpdateSearchDocumentsRequest) returns (UpdateSearchDocumentsResponse) {}
 
 // Retrieves documents
 rpc GetSearchDocumentsAlpha1(GetSearchDocumentsRequest) returns (GetSearchDocumentsResponse) {}
@@ -92,28 +110,52 @@ rpc GetSearchDocumentsAlpha1(GetSearchDocumentsRequest) returns (GetSearchDocume
 // Deletes documents
 rpc DeleteSearchDocuments(DeleteSearchDocumentsRequest) returns (DeleteSearchDocumentsResponse) {}
 
-// Updates a document
-rpc UpdateSearchDocument(UpdateSearchDocumentRequest) returns (UpdateSearchDocumentResponse) {}
-...
-}
+
+// Search for documents
+rpc SearchDocumentsAlpha1(SearchDocumentRequest) returns
+(SearchDocumentResponse) {}
+
+
+message CreateSearchIndexRequest{}
+
+message CreateSearchIndexResponse{}
+
+message GetSearchIndexRequest{}
+
+message GetSearchIndexResponse{}
+
+message UpdateSearchIndexRequest{}
+
+message UpdateSearchIndexResponse{}
+
+message DeleteSearchIndexRequest{}
+
+message DeleteSearchIndexResponse{}
+
+message ListAllSearchIndexRequest{}
+
+message ListAllSearchIndexResponse{}
+
 
 message SearchDocument {
     string id = 1;
     map<string, string> fields = 2;
 }
 
-message SearchRequest {
+message SearchDocumentRequest {
     string query = 1;
     int32 limit = 2;
     int32 offset = 3;
     map<string, string> filters = 4;
 }
 
-message InsertSearchDocuments {
+message UpdateSearchDocuments {
     repeated SearchDocument documents = 1;
+    index string = 2;
+    replace bool = 3; // If a document exists, replace rather than update.
 }
 
-message InsertSearchDocumentsResponse {}
+message UpdateSearchDocumentsResponse {}
 
 // Specify either a number of documents to retrieve or a request
 message GetSearchDocumentsRequest {
