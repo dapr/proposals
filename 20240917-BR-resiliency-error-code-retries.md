@@ -10,10 +10,10 @@ It only focuses on the `retries` (https://docs.dapr.io/operations/resiliency/pol
 
 ## Background
 
-In some applications, error codes may be used to indicate the business error, and retrying the operation might not be necessary or otherwise desirable.
+In some applications, some status codes may be used to indicate the business error, and retrying the operation might not be necessary or otherwise desirable.
 Customizing retry behavior will allow a more granular way to handle error codes that suit each use case.
 Currently, all errors are retried when the policy is applied.
-Some errors are not retryable, and subsequent calls will result in the same error, avoiding these retry calls will reduce the overall amount of requests, traffic, and errors.
+Some status codes are not retryable, and subsequent calls will result in the same error. Avoiding these retry calls will reduce the overall number of requests, traffic, and errors.
 
 ## Related Items
 
@@ -39,12 +39,12 @@ https://github.com/dapr/docs/issues/3859
 
 ### Design
 
-Add a new object field to the `retries` policy Spec to allow the user to specify the error codes that should be retried.
+Add a new object field to the `retries` policy Spec to allow the user to specify the status codes that should be retried.
 Separate fields for HTTP and gRPC. The new fields should be optional and will default to the existing behavior, which is to retry on all errors.
 
 ### Example 1:
-In this example, the retry policy will retry **_only_** on HTTP 500 and HTTP error range 502-504 (inclusive) and gRPC error range 2-4 (inclusive).
-The rest of the errors will not be retried.
+In this example, the retry policy will retry **_only_** on HTTP 500 and HTTP status code range 502-504 (inclusive) and gRPC status code range 2-4 (inclusive).
+The rest of the status codes will not be retried.
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -66,8 +66,8 @@ spec:
 ```
 
 ### Example 2:
-In this example, the retry policy will retry **_only_** on gRPC error range 1-15 (inclusive).
-However, this policy will not apply to the HTTP errors, and they will be retried according to the default behavior, which is to retry on all errors.
+In this example, the retry policy will retry **_only_** on gRPC status code range 1-15 (inclusive).
+However, this policy will not apply to the HTTP status codes, and they will be retried according to the default behavior, which is to retry on all errors.
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -94,14 +94,14 @@ The acceptable values are the same as the ones defined in the [HTTP Status Codes
 - gRPC: from 1 to 16
 
 ### Setting Format
-Both the `httpStatusCodes` and `gRPCStatusCodes` fields are of type string and optional and can be set to a comma-separated list of error codes and/or ranges of error codes.
+Both the `httpStatusCodes` and `gRPCStatusCodes` fields are of type string and optional and can be set to a comma-separated list of status codes and/or ranges of status codes.
 The range must be in the format `<start>-<end>` (inclusive). Having more than one dash in the range is not allowed.
 
 ### Parsing the configuration
 
 The configuration values will be first parsed as comma-separated lists.
-Each entry in the list will be then parsed as a single error code or a range of error codes.
-For invalid entries, the error will be logged when the policy is first loaded and the entry will be ignored, this will not fail the entire policy or the application start.
+Each entry in the list will be then parsed as a single status code or a range of status codes.
+Invalid entries will be logged and the application will fail to start.
 
 Example:
 
@@ -124,15 +124,15 @@ spec:
 ```
 The steps to parse the configuration are:
 1. Split the `httpStatusCodes` configuration string `"500,502-504,15,404-405-500,-1,0,"` by the comma character resulting in the following list: `["500", "502-504", "15", "404-405-500", "-1", "0"]` ignoring the empty strings.
-2. For each entry in the list, parse it as a single error code or a range of error codes.
-3. If the entry is a single error code, add it to the list of error codes to retry.
-4. If the entry is a range of error codes (each field for the relevant HTTP or gRPC error codes), add all the error codes in the range to the list of error codes to retry.
+2. For each entry in the list, parse it as a single status code or a range of status codes.
+3. If the entry is a single status code, add it to the list of status codes to retry.
+4. If the entry is a range of status codes (each field for the relevant HTTP or gRPC status codes), add all the status codes in the range to the list of status codes to retry.
 - 500 is **valid** code for HTTP
 - 502-504 **valid** range of codes for HTTP
-- 15 is **invalid** code for HTTP, error logged and entry ignored
-- 404-405-500 is **invalid** range contains more than one dash, error logged and entry ignored
-- -1 is ignored is **invalid** code for HTTP, error logged and entry ignored
-- 0 is ignored is **invalid** code for HTTP, error logged and entry ignored
+- 15 is **invalid** code for HTTP, error logged and application will fail to start
+- 404-405-500 is **invalid** range contains more than one dash, error logged and application will fail to start
+- -1 is ignored is **invalid** code for HTTP, error logged and application will fail to start
+- 0 is ignored is **invalid** code for HTTP, error logged and application will fail to start
 
 ### Acceptance Criteria
 
