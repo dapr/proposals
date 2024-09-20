@@ -125,4 +125,11 @@ message Job {
 
 The Scheduler Job API service mirrors the new `FailurePolicy` options available in the go-etcd-cron library.
 Similarly, the runtime Jobs API will be updated to support the same new `FailurePolicy` options.
+
 When using Scheduler, Workflows will change Actor Reminders to now be single shot Jobs with a constant failure policy of every 5 seconds, and a maximum attempts of 120 (10 minutes).
+Making this change to workflow reminders is desirable for a number of reasons:
+
+- The current 1 minute interval of workflow reminders is often not appropriate, as it is either too long or too short.
+- Current implementation of "cancelling" a workflow reminder is fragile and often does not work as expected.
+- Removes the Delete Reminder code in the workflow runtime which is adding another round trip.
+- Ensures there is never a case of "double trigger" of a workflow reminder, which is a suspected current source of flakiness in workflows.
