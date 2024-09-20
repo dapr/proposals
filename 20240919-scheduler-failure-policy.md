@@ -9,10 +9,10 @@ Proposal details a Scheduler queue and Job API extension to support controlling 
 
 ## Background
 
-The [Scheduler](https://docs.dapr.io/concepts/dapr-services/scheduler/) (and [go-etcd-cron](https://github.com/diagridio/go-etcd-cron/)) library are responsible for managing and executing jobs of all target consuming types.
+The [Scheduler](https://docs.dapr.io/concepts/dapr-services/scheduler/) (and [go-etcd-cron](https://github.com/diagridio/go-etcd-cron/) library) are responsible for managing and executing jobs of all target consuming types.
 When a Job is triggered, it is sent on a gRPC streaming connection from Scheduler to a connected daprd that implements that [Job target](https://github.com/dapr/dapr/blob/da6fb0db46b4d2932640eeaaaccf8b76f248f388/dapr/proto/scheduler/v1/scheduler.proto#L115).
 In the event that this fails, for example if the trigger itself fails or there are no daprd instances connected for that target, the Job will currently still be marked as "triggered" a.k.a. "ticked" on the queue backend.
-While always ticking failed jobs can be desirable behaviour, this is not always the case- and the applications often requires the job trigger to be retried multiple times on that tick to ensure durability of the schedule.
+While always ticking failed jobs can be desirable behaviour, this is not always the case- and applications often require the job trigger to be retried multiple times on that tick to ensure durability of the schedule.
 
 ## Expectations and alternatives
 
@@ -33,7 +33,7 @@ To begin with, we will support 3 failure policies:
 
 ### go-etcd-cron
 
-To support the new `FailurePolicy` options, the go-etcd-cron, we first need to keep track of the current number of attempts the current Job count has been triggered on a particular tick.
+To support the new `FailurePolicy` options, we first need to keep track of the current number of attempts the current Job count has been triggered on a particular tick.
 We also need to keep track of the time at which that attempt was made in order to calculate the next attempt time according to the `FailurePolicy` schedule.
 Like the trigger time, the last attempt time is the virtual _correct_ time that the attempt was to be made, rather than the observed wall clock time.
 This is to ensure durability of the Scheduler during events of slow down or down time/restarts.
@@ -56,6 +56,7 @@ message Counter {
 
 Below are the proto definitions for the new `FailurePolicy` options.
 Both constant and cron policies include an optional max retries option to limit the number of retries according to the number of attempts.
+If max retries is unset, the Job will be retried indefinitely.
 The failure policy message is added as an optional field to the Job message.
 If unset, the failure policy of a Job is `Drop`.
 
@@ -82,6 +83,7 @@ message FailurePolicyConstant {
 
   // max_retries is the optional maximum number of retries to attempt before
   // giving up.
+  // If unset, the Job will be retried indefinitely.
   optional uint32 max_retries = 2;
 }
 
@@ -95,6 +97,7 @@ message FailurePolicyCron {
 
   // max_retries is the optional maximum number of retries to attempt before
   // giving up.
+  // If unset, the Job will be retried indefinitely.
   optional uint32 max_retries = 2;
 }
 ```
@@ -115,4 +118,4 @@ message Job {
 
 The Scheduler Job API service mirrors the new `FailurePolicy` options available in the go-etcd-cron library.
 Similarly, the runtime Jobs API will be updated to support the same new `FailurePolicy` options.
-When using Scheduler, Workflows will change Actor Reminders to now be single shot Jobs with a constant failure policy of every 5 seconds and a maximum attempts of 120 (10 minutes).
+When using Scheduler, Workflows will change Actor Reminders to now be single shot Jobs with a constant failure policy of every 5 seconds, and a maximum attempts of 120 (10 minutes).
