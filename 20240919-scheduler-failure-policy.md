@@ -34,8 +34,9 @@ To begin with, we will support 3 failure policies:
 ### Future Design
 
 Although not part of the proposal, in future we can extend Scheduler to include a staging queue which is dedicated for Jobs where no current stream implements its target.
-This addition would mean that these Jobs are not needlessly being attempted to be triggered, freeing up main queue resources and preserving the intended failure policy.
-In the event a stream implementing the target is connected, the Job can be moved to the main queue and triggered immediately.
+This addition would mean that the Jobs with no target are not needlessly being attempted to be triggered, freeing up main queue resources and preserving the intended failure policy.
+Upon trigger, if no target stream is connected, the job will be moved to this staging queue.
+In the event a stream implementing the target is connected, the Job can be moved to the main queue and triggered immediately or on its proper schedule.
 
 ### go-etcd-cron
 
