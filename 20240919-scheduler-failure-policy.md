@@ -31,6 +31,12 @@ To begin with, we will support 3 failure policies:
 2. `Constant`: the job will be retried as a constant time interval, up to a maximum number of retries (which could be infinite).
 3. `Schedule`: the job will be retried according to a [cron scheudler](https://github.com/diagridio/go-etcd-cron/blob/2a1c6747974627691165eb96a2ca0202285d71eb/proto/job.proto#L68), up to a maximum number of retries (which could be infinite).
 
+### Future Design
+
+Although not part of the proposal, in future we can extend Scheduler to include a staging queue which is dedicated for Jobs where no current stream implements its target.
+This addition would mean that these Jobs are not needlessly being attempted to be triggered, freeing up main queue resources and preserving the intended failure policy.
+In the event a stream implementing the target is connected, the Job can be moved to the main queue and triggered immediately.
+
 ### go-etcd-cron
 
 To support the new `FailurePolicy` options, we first need to keep track of the current number of attempts the current Job count has been triggered on a particular tick.
