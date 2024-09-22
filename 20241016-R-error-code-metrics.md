@@ -30,12 +30,19 @@ Dapr uses Prometheus by default, and so having these errors as Prometheus metric
 ## Related Items
 
 Initial Error Codes Proposal: [proposals/#21](https://github.com/dapr/proposals/pull/21)
+
 Error Codes Implementation Parent: [dapr/#6068](https://github.com/dapr/dapr/issues/6068)
 
 ## Expectations and alternatives
 
-- When opted-in, it would add up to  `N * app`  (N = number of error codes) metrics for scraping, today that's  `52 * app`.
-- If a component-based error, codes could repeat for multiple components used by the same app, and wouldn't be differentiated by the metrics only providing the `app-id`.
+### Expectations
+- When opted-in, it would add up to  `N * app`  (N = number of error codes) metrics for scraping, today that's around `52 * app`.
+- If a component-based error, codes could repeat for multiple components used by the same app, and wouldn't be differentiated by the metrics, which only provide the `app-id`.
+- Many logged error codes are currently defined in [pkg/messages/predefined.go](https://github.com/dapr/dapr/blob/master/pkg/messages/predefined.go), but not all. Implementation requires case-by-case analysis of usage of error codes in that uppercase format `ERR_NAME_TAG`.
+
+### Alternatives
+- One alternative solution which retains error codes as logs only would be to change the level of logs containing these error codes from `debug` to `info`. However, this increases noise and raises logs which may be unhelpful at `info` level.
+- Another alternative solution would be to log error codes separately with opt-in functionality, but this achieves the same result as adding metrics, but increase log noise and doesn't introduce a simple way to actually work with the errors.
 
 ## Implementation Details
 
@@ -51,7 +58,7 @@ spec:
       errorCodeMetrics: true
 ```
 From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id` and `error_code` like so:
-```json
+```go
 dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 4
 dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_INVOKE_METHOD"} 12
 dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 55
@@ -67,10 +74,10 @@ ErrHealthNotReady  =  APIError{message: "dapr is not ready",  tag: "ERR_HEALTH_N
 ```go
 func  (a *api)  onGetHealthz(w http.ResponseWriter, r *http.Request)  {
 	if !a.readyStatus {
-		msg := messages.ErrHealthNotReady //
+		msg := messages.ErrHealthNotReady
 		respondWithError(w, msg)
 		log.Debug(msg)
-		ErrorCodeMetrics.RecordError()
+		ErrorCodeMetrics.RecordError(msg.tag)
 		return
 	}
 ...
