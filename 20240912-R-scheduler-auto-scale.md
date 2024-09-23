@@ -16,12 +16,11 @@ code will need to be updated such that it optionally runs embedded etcd on diffe
 
 In Dapr v1.14 we introduced the Scheduler control plane service to support the Jobs API along with scaling the Actor
 reminder system and the Workflow API (since it uses Actor reminders under the hood). The Scheduler encompasses running
-itself as a new process, an embedded etcd instance, and an internal cron scheduler. There are a few things needed to
-make the Scheduler a stable control plane service. This proposal will be detailing how to support the auto-scaling of
-Schedulers and secondly enhancing the Schedulers such that we optionally run etcd instances in the Schedulers under
-certain circumstances that make sense. When scaling beyond 5 etcd instances, there are little performance improvements, 
-so it makes sense for Schedulers to become stateless at this point. For example, we could have 20 Schedulers, but only
-5 of them would contain the embedded etcd.
+itself as a new process, an embedded etcd instance, and an internal cron scheduler. This proposal will be detailing how 
+to support the auto-scaling of Schedulers and secondly enhancing the Schedulers such that we optionally run etcd 
+instances in the Schedulers under certain circumstances that make sense. When scaling beyond 3 etcd instances, there is
+little performance improvement, so it makes sense for Schedulers to become stateless at this point. For example, we 
+could have 20 Schedulers, but only 3 of them would contain the embedded etcd.
 
 ## Related Items
 
@@ -121,7 +120,7 @@ message WatchHostsRequest {}
 
 ```
 
-3. **1/3/5 Schedulers with respective embedded etcd instances, beyond 5 instances run Schedulers stateless**. We want to
+3. **1 or 3 Schedulers with respective embedded etcd instances, beyond 3 instances run Schedulers stateless**. We want to
 optionally run embedded etcd in Scheduler for cases where it makes sense. Cases to consider:
 - running 1 Scheduler means running it with embedded etcd
 - running 2 Schedulers means running the first with embedded etcd, the second Scheduler will be stateless and connect to
@@ -130,13 +129,13 @@ the existing etcd
 - running 4 Schedulers means running 3 Schedulers with embedded etcd, and the last one will be stateless and connect to
 an existing etcd. Note, here there is no gain to round-robin-ing between the existing etcd instances due to the way 
 etcd works with raft under the hood.
-- running 5 Schedulers means running 5 Schedulers with embedded etcd.
-- running beyond 5 Schedulers means running 5 Schedulers with embedded etcd, and any Scheduler beyond 5 will be 
+- running 5 Schedulers means running 3 Schedulers with embedded etcd, the last two Scheduler instances will be stateless.
+- running beyond 5 Schedulers means running 3 Schedulers with embedded etcd, and any Scheduler beyond 3 will be 
 stateless and connect to an existing etcd instance.
 
 ![Stateless Schedulers Example](./resources/20240912-R-scheduler-auto-scale/statelessSchedulersExample.png)
 
-etcd must run with an odd number of replicas. In dapr, 5 will be our practical limit while running inside Schedulers. 
+etcd must run with an odd number of replicas. In dapr, 3 will be our practical limit while running inside Schedulers. 
 With the cron scheduler library and embedded etcd already separate processes in Scheduler, we just need to optionally 
 run the embedded etcd.
 
@@ -153,6 +152,6 @@ quorum loss as we dynamically add or remove stateful Schedulers.
 
 - [ ] Write the new control loop for the go-etcd-cron library to make the leadership table & job queue dynamic
 - [ ] Add WatchHosts to scheduler.proto & update code to use it while ensuring backwards compatibility
-- [ ] 1/3/5 Scheduler etcd problem where Schedulers might be stateless
+- [ ] 1 or 3 Scheduler etcd problem where Schedulers might be stateless
 - [ ] Tests
 - [ ] Document that some Schedulers might be stateless
