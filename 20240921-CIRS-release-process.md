@@ -12,6 +12,9 @@ The automation will leverage existing release workflows for each repository
 where implemented, with updates to add commit statuses to the context where
 tests have passed.
 
+A new release repository will be maintained by the release team to manage the
+release process - named `release`.
+
 The new release process will be triggered by an issue being created with a
 template defining the targets, once the required tests have passed a pull
 request with the release notes will be created automatically and subject to
@@ -29,7 +32,7 @@ confidently with a defined workflow by maintainers.
 ## Expectations
 
 * The release process will be triggered by a standardised issue template in the
-  main dapr/dapr repository.
+  main dapr/release repository.
 * SDKs will be free to continue with releases where not part of a release run.
 * Existing release workflows will be utilised where possible for testing and
 releases.
@@ -149,7 +152,7 @@ The status of the release will be reported on the issue and PR.
 
 ## Completion Checklist
 
-* [ ] Workflows implemented
+* [ ] Workflows implemented (new release repository)
   * [ ] Issue trigger
   * [ ] Tests passing
   * [ ] PR Merge
