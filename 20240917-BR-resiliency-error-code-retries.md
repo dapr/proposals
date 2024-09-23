@@ -101,7 +101,7 @@ The range must be in the format `<start>-<end>` (inclusive). Having more than on
 
 The configuration values will be first parsed as comma-separated lists.
 Each entry in the list will be then parsed as a single status code or a range of status codes.
-Invalid entries will be logged and the application will fail to start.
+Invalid entries will be logged and the Dapr runtime will fail to start.
 
 Example:
 
