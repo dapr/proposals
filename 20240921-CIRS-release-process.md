@@ -89,6 +89,7 @@ The release will use an unordered list defining inputs:
 ```
 
 The version should be specified as MAJOR.MINOR e.g. 1.15
+A full semantic version can be provided as an override.
 
 The app will confirm whether there is an existing release, if so will provide
 a patch release. If it is a RC release, it will increment the RC version unless
