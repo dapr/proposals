@@ -162,21 +162,21 @@ For the databases where this is a concern, we should offer an option to disable 
 
 Here's a list of the relevant capabilities of all the stable state stores:
 
-|   | Store | Cursor listing | Offset listing | Sorting | Number of Items per Page | Prefix Search | Comments |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | aws dynamodb | Yes | No | Yes, with a GSI | Yes | Yes, with an additional sortKey and a GSI | In order to be able to use prefix search, users will need to have a Global Search Index(GSI) where the partition key will be a single fixed string (for ex. the `_` character) and the sort key will be the key name. There are some drawbacks to this that can be discussed in detail elsewhere. |
-| 2 | azure blob store | Yes (continuation token) | No | Always sorted in ASC order. Desc, or unsorted is not possible. | Yes | Yes | Results are always sorted by key name in ascending order. |
-| 3 | azure cosmos db | Yes | Yes | Yes | Yes | Yes |   |
-| 4 | azure table storage | Yes | No | Yes, just ASC | Yes, with $top | Yes, with range search | Partition key is the application id. |
-| 5 | cassandraYes | No | No | No | No | Can’t prefix search and sort across all partitions. We could consider maintaining a new table containing all keys, and mirroring the original key’s ttl. |   |
-| 6 | cockroachdbYes, if sorting is required | Yes | Yes | No | Yes | Need to create an index on the search column |   |
-| 7 | gcp firestore | Yes |   |   |   |   |   |
-| 8 | in-memory | No | No | No | No | No | We can implement all the features, but it’s not trivial to aggregate data across multiple instances |
-| 9 | memcached | No | No | No | No | No |   |
-| 10 | mongodbYes | Yes | Yes |   | Yes |   |   |
-| 11 | mysqlYes | Yes |   |   | Yes | Need to create an index on the id column. MySql supports specialized prefix indices, but you would have to know the exact length of the prefix you’ll be searching on, also sorting will not use the index. |   |
-| 12 | postgresqlYes | Yes | Yes | No | Yes | Need to create an index on the key column. We can use the varchar\_pattern\_ops operator class, optimised for prefix search. |   |
-| 13 | redisYes | No | No | No | Yes | Number of record per page is not guaranteed, but best effort. |   |
-| We could maintain our own sortedset that keeps the ttl. |   |   |   |   |   |   |   |
-| 14 | sqliteYes, if sorting is required | Yes | Yes | No | Yes | Need to create an index on the key column. It’s a standard b-tree index.We could maintain an index of all keys in a hash |   |
-| 15 | sqlserver | Yes, if sorting is required | Yes | Yes | Yes | Yes | need to create a non-clustered index on the “key” column |
+| Store | Cursor listing | Offset listing | Sorting | Number of Items per Page | Prefix Search | Comments |
+| --- | --- | --- | --- | --- | --- | --- |
+| aws dynamodb | Yes | No | Yes, with a GSI | Yes | Yes, with an additional sortKey and a GSI | In order to be able to use prefix search, users will need to have a Global Search Index(GSI) where the partition key will be a single fixed string (for ex. the `_` character) and the sort key will be the key name. There are some drawbacks to this that can be discussed in detail elsewhere. |
+| azure blob store | Yes (continuation token) | No | Always sorted in ASC order. Desc, or unsorted is not possible. | Yes | Yes | Results are always sorted by key name in ascending order. |
+| azure cosmos db | Yes | Yes | Yes | Yes | Yes |   |
+| azure table storage | Yes | No | Yes, just ASC | Yes, with $top | Yes, with range search | Partition key is the application id. |
+| cassandraYes | No | No | No | No | Can’t prefix search and sort across all partitions. We could consider maintaining a new table containing all keys, and mirroring the original key’s ttl. |   |
+| cockroachdbYes, if sorting is required | Yes | Yes | No | Yes | Need to create an index on the search column |   |
+| gcp firestore | Yes |   |   |   |   |   |
+| in-memory | No | No | No | No | No | We can implement all the features, but it’s not trivial to aggregate data across multiple instances |
+| memcached | No | No | No | No | No |   |
+| mongodbYes | Yes | Yes |   | Yes |   |   |
+| mysqlYes | Yes |   |   | Yes | Need to create an index on the id column. MySql supports specialized prefix indices, but you would have to know the exact length of the prefix you’ll be searching on, also sorting will not use the index. |   |
+| postgresqlYes | Yes | Yes | No | Yes | Need to create an index on the key column. We can use the varchar\_pattern\_ops operator class, optimised for prefix search. |   |
+| redisYes | No | No | No | Yes | Number of record per page is not guaranteed, but best effort. |   |
+|   |   |   |   |   |   |   |
+| sqliteYes, if sorting is required | Yes | Yes | No | Yes | Need to create an index on the key column. It’s a standard b-tree index.We could maintain an index of all keys in a hash |   |
+| sqlserver | Yes, if sorting is required | Yes | Yes | Yes | Yes | need to create a non-clustered index on the “key” column |
