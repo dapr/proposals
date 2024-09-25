@@ -97,6 +97,10 @@ The acceptable values are the same as the ones defined in the [HTTP Status Codes
 Both the `httpStatusCodes` and `gRPCStatusCodes` fields are of type string and optional and can be set to a comma-separated list of status codes and/or ranges of status codes.
 The range must be in the format `<start>-<end>` (inclusive). Having more than one dash in the range is not allowed.
 
+### CRD Validation
+
+Both field values should be validated using Common Expression Language [CEL](https://kubernetes.io/docs/reference/using-api/cel/)
+
 ### Parsing the configuration
 
 The configuration values will be first parsed as comma-separated lists.
