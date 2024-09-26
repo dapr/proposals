@@ -13,7 +13,7 @@ A brief description of the proposal; include information such as:
 
 ## Background
 
-This section is intented to provide the community with the reasoning behind this proposal -- why is this proposal being made? What problem is it solving for users / developers / operators and how does it solve that for them?
+This section is intended to provide the community with the reasoning behind this proposal -- why is this proposal being made? What problem is it solving for users / developers / operators and how does it solve that for them?
 
 ## Related Items
 
@@ -56,7 +56,7 @@ How will this work, technically? Where applicable, include:
 How will success be measured? 
 
 * Performance targets
-* Compabitility requirements
+* Compatibility requirements
 * Metrics
 
 ## Completion Checklist
