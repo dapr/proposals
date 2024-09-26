@@ -88,6 +88,7 @@ The release will use an unordered list defining inputs:
   * python: VERSION
   * dotnet: VERSION
   * java: VERSION
+  * js: VERSION
 
 ```
 
