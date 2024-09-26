@@ -100,6 +100,7 @@ The range must be in the format `<start>-<end>` (inclusive). Having more than on
 ### CRD Validation
 
 Both field values should be validated using Common Expression Language [CEL](https://kubernetes.io/docs/reference/using-api/cel/)
+In addition, see Kubebuilder documentation for [CRD Validation](https://book.kubebuilder.io/reference/markers/crd-validation)
 
 ### Parsing the configuration
 
