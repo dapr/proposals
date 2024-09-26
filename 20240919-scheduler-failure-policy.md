@@ -29,7 +29,7 @@ To begin with, we will support 3 failure policies:
 1. `Drop`: the job trigger will not be retried and the job will be marked as ticked.
   This is the current behaviour and will continue to be the default behaviour for all jobs.
 2. `Constant`: the job will be retried as a constant time interval, up to a maximum number of retries (which could be infinite).
-3. `Schedule`: the job will be retried according to a [cron scheudler](https://github.com/diagridio/go-etcd-cron/blob/2a1c6747974627691165eb96a2ca0202285d71eb/proto/job.proto#L68), up to a maximum number of retries (which could be infinite).
+3. `Schedule`: the job will be retried according to a [cron scheduler](https://github.com/diagridio/go-etcd-cron/blob/2a1c6747974627691165eb96a2ca0202285d71eb/proto/job.proto#L68), up to a maximum number of retries (which could be infinite).
 
 ### Future Design
 
