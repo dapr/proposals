@@ -70,7 +70,7 @@ information for the run that will be displayed.
 #### Trigger - Release Issue Creation
 
 The process will be triggered by the creation of an issue from a template in
-`dapr/dapr`.
+`dapr/release`. The label MUST also be release-eng/release.
 
 The release will use an unordered list defining inputs:
 
