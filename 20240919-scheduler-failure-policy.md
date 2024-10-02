@@ -25,11 +25,10 @@ While always ticking failed jobs can be desirable behaviour, this is not always 
 
 ## Design
 
-To begin with, we will support 3 failure policies:
+To begin with, we will support 2 failure policies:
 1. `Drop`: the job trigger will not be retried and the job will be marked as ticked.
-  This is the current behaviour and will continue to be the default behaviour for all jobs.
 2. `Constant`: the job will be retried as a constant time interval, up to a maximum number of retries (which could be infinite).
-3. `Schedule`: the job will be retried according to a [cron scheduler](https://github.com/diagridio/go-etcd-cron/blob/2a1c6747974627691165eb96a2ca0202285d71eb/proto/job.proto#L68), up to a maximum number of retries (which could be infinite).
+  This policy will be the default behaviour, with a 1 second delay and 3 maximum retries.
 
 ### Future Design
 
@@ -62,7 +61,7 @@ message Counter {
 ```
 
 Below are the proto definitions for the new `FailurePolicy` options.
-Both constant and cron policies include an optional max retries option to limit the number of retries according to the number of attempts.
+The constant policy includes an optional max retries option to limit the number of retries according to the number of attempts.
 If max retries is unset, the Job will be retried indefinitely.
 The failure policy message is added as an optional field to the Job message.
 If unset, the failure policy of a Job is `Drop`.
@@ -74,7 +73,6 @@ message FailurePolicy {
   oneof policy {
     FailurePolicyDrop drop = 1;
     FailurePolicyConstant constant = 2;
-    FailurePolicyCron cron = 3;
   }
 }
 
@@ -93,20 +91,6 @@ message FailurePolicyConstant {
   // If unset, the Job will be retried indefinitely.
   optional uint32 max_retries = 2;
 }
-
-// FailurePolicyCron is a policy which retries the job according to a cron
-// schedule.
-message FailurePolicyCron {
-  // schedule is the cron schedule at which to retry the job.
-  // See the Job.schedule field for the format of schedule.
-  // Must not be empty.
-  string schedule = 1;
-
-  // max_retries is the optional maximum number of retries to attempt before
-  // giving up.
-  // If unset, the Job will be retried indefinitely.
-  optional uint32 max_retries = 2;
-}
 ```
 
 ```proto
@@ -115,8 +99,8 @@ message Job {
 
   // failure_policy is the optional policy to apply when a job fails to
   // trigger.
-  // By default, the failure policy is drop- meaning the Job tick will be
-  // dropped or ignored in the event of failure.
+  // By default, the failure policy is FailurePolicyConstant, with a 1s delay
+  // and 3 maximum retries.
   optional FailurePolicy failure_policy = 7;
 }
 ```
