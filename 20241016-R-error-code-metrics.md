@@ -54,8 +54,11 @@ The feature is enabled via an opt-in flag within Dapr HTTP metrics (disabled by 
 spec:
   metric:
     enabled: true
-    http:
-      errorCodeMetrics: true
+	recordErrorCodes: true # <-- new opt-in flag
+	http:
+		...
+	...
+...
 ```
 From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id` and `error_code` like so:
 ```go
