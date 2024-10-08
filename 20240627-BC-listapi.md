@@ -174,9 +174,8 @@ Here's a list of the relevant capabilities of all the stable state stores:
 | **in-memory** | No | No | No | No | No | We can implement all the features, but it’s not trivial to aggregate data across multiple instances |
 | **memcached** | No | No | No | No | No |   |
 | **mongodb** | Yes | Yes | Yes | Yes | Yes |   |
-| **mysql** | Yes | Yes |   | Yes | Yes | Need to create an index on the id column. MySql supports specialized prefix indices, but you would have to know the exact length of the prefix you’ll be searching on, also sorting will not use the index. |
+| **mysql** | Yes | Yes | Yes | Yes | Yes | Need to create an index on the id column. MySql supports specialized prefix indices, but you would have to know the exact length of the prefix you’ll be searching on, also sorting will not use the index. |
 | **postgresql** | Yes | Yes | Yes | Yes | Yes | Need to create an index on the key column. We can use the varchar\_pattern\_ops operator class, optimised for prefix search. |
 | **redis** | Yes | No | No | Yes (Best effort) | Yes | Number of record per page is not guaranteed, but best effort. |
-|   |   |   |   |   |   |   |
 | **sqlite** | Yes, if sorting is required | Yes | Yes | Yes | Yes | Need to create an index on the key column. It’s a standard b-tree index.We could maintain an index of all keys in a hash |
 | **sqlserver** | Yes, if sorting is required | Yes | Yes | Yes | Yes | need to create a non-clustered index on the “key” column |
