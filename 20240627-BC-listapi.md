@@ -6,8 +6,11 @@ The requirements for the API are:
 
 - Ability to list all keys in a state store
 - Ability to list keys in a state store with a certain prefix
-- The results can be sorted
 - The results can be paginated
+
+Not required:
+- Ability to sort keys
+- Ability to return a paginated result of a snapshot of the state store at a certain point in time
 
 As with the other state store APIs, the List API will also have the difficult job of finding a set of features that are supported across most state store components and filling in the gaps with reasonable behaviour when they aren’t. 
 
@@ -18,13 +21,8 @@ As with the other state store APIs, the List API will also have the difficult jo
 Developers can list keys by issuing an HTTP API call to the Dapr sidecar:
 
 ```bash
-GET /v1.0/state/:storeName/?prefix={prefix}&sorting={sorting}&page_limit={pageLimit}&page_token={pageToken}
+GET /v1.0/state/:storeName/?prefix={prefix}&page_limit={pageLimit}&page_token={pageToken}
 ```
-
-The `sorting` query parameter can accept one of the following values:
-- `default`
-- `asc`
-- `desc`
 
 
 The response will be a JSON object with the following structure:
@@ -38,7 +36,7 @@ The response will be a JSON object with the following structure:
 For example:  
 Request:
 ```cURL
-GET /v1.0/state/myStateStore?prefix=user&sorting=asc&page_limit=3&page_token=user3
+GET /v1.0/state/myStateStore?prefix=user&page_limit=3&page_token=user3
 ```
 Response:
 ```json
@@ -66,19 +64,10 @@ message ListStateRequest {
   // The maximum number of items that should be returned per page
   optional uint32 page_limit = 2;
 
-  // Specifies if the result should be sorted
-  optional Sort sort = 3;
-
   // Specifies the next pagination token
   // If this is empty, it indicates the start of a new listing.
   optional string page_token = 4;
 
-  // Sorting order options
-  enum Sort {
-    DEFAULT = 0;
-    ASCENDING = 1;
-    DESCENDING = 2;
-  }
 }
 
 message ListStateResponse {
@@ -94,7 +83,6 @@ message ListStateResponse {
 ### Default values
 
 - Prefix: “”
-- Sorting: “default”
 - Page limit: 50
 - Next token: “”
 
@@ -121,17 +109,9 @@ SELECT * FROM items WHERE key > last_key_id ORDER BY key;
 
 ---
 
-Most often, offset-based pagination is not possible in no-sql databases, while it’s easy (even preferable) to implement in relational databases, so this proposal suggests using **token-based pagination** in the List API.
+Most often, offset-based pagination is not possible in no-sql databases, while token-based pagination is easy (even preferable) to implement in relational databases, so this proposal suggests using **token-based pagination** in the List API.
 
 Based on this decision, listing items will only be available forwards, and not backwards. To list previous pages, the application would have to keep track of the page tokens.
-
-## **Sorting**
-
-Sorting is required for token-based pagination in relational databases, so we must have a default sorting order.
-
-Some no-sql databases (ex. Azure blob store) don’t support sorting in descending order and others don’t support any sorting at all (ex. Redis). In these cases, we want to return an explicit error instead of failing silently.
-
-This might be restricting for use cases where the underlying state store needs to be swapped though. For example a team could use Redis for local development, and Postgres in production, and they wouldn’t be able to use the same application code, because the sorting clause would error on Redis, but pass on Postgres. That’s why we’re introducing the `Default` sorting option which will sort in ascending order for all databases that support it, and leave results unsorted for the databases that don’t.
 
 ## SDKs
 
@@ -158,24 +138,24 @@ For the databases where this is a concern, we should offer an option to disable 
 - **Prefix Search**: The ability to search for items that start with a given prefix.
 - **Pagination**: The ability to paginate through items, typically using skip/limit or similar mechanisms.
 
-## Adendum
+## Addendum
 
 Here's a list of the relevant capabilities of all the stable state stores:
 
 | Store | Cursor listing | Offset listing | Sorting | Number of Items per Page | Prefix Search | Comments |
 | --- | --- | --- | --- | --- | --- | --- |
 | **aws dynamodb** | Yes | No | Yes, with a GSI | Yes | Yes, with an additional sortKey and a GSI | In order to be able to use prefix search, users will need to have a Global Search Index(GSI) where the partition key will be a single fixed string (for ex. the `_` character) and the sort key will be the key name. There are some drawbacks to this that can be discussed in detail elsewhere. |
-| **azure blob store** | Yes (continuation token) | No | Always sorted in ASC order. Desc, or unsorted is not possible. | Yes | Yes | Results are always sorted by key name in ascending order. |
+| **azure blob store** | Yes | No | Always sorted in ASC order. Desc, or unsorted is not possible. | Yes | Yes | Results are always sorted by key name in ascending order. |
 | **azure cosmos db** | Yes | Yes | Yes | Yes | Yes |   |
 | **azure table storage** | Yes | No | Yes, just ASC | Yes, with $top | Yes, with range search | Partition key is the application id. |
-| **cassandra** | Yes | No | No | Yes | No | Can’t prefix search and sort across all partitions. We could consider maintaining a new table containing all keys, and mirroring the original key’s ttl. |
+| **cassandra** | Yes | No | No | Yes | Yes, with `ALLOW FILTERING` but it does a full table scan. | Prefix search with `ALLOW FILTERING` is prohibitively slow. Sorting doesn't happen across all partitions. We could consider maintaining a new index-like non-partitioned table containing all keys, and mirroring the original key’s ttl. |
 | **cockroachdb** | Yes, if sorting is required | Yes | Yes | Yes | Yes | Need to create an index on the search column |
 | **gcp firestore** | Yes |   |   |   |   |   |
-| **in-memory** | No | No | No | No | No | We can implement all the features, but it’s not trivial to aggregate data across multiple instances |
+| **in-memory** | No | No | No | No | No | All features can be implemented |
 | **memcached** | No | No | No | No | No |   |
 | **mongodb** | Yes | Yes | Yes | Yes | Yes |   |
 | **mysql** | Yes | Yes | Yes | Yes | Yes | Need to create an index on the id column. MySql supports specialized prefix indices, but you would have to know the exact length of the prefix you’ll be searching on, also sorting will not use the index. |
-| **postgresql** | Yes | Yes | Yes | Yes | Yes | Need to create an index on the key column. We can use the varchar\_pattern\_ops operator class, optimised for prefix search. |
+| **postgresql** | Yes, if sorting is required | Yes | Yes | Yes | Yes | Need to create an index on the key column. We can use the varchar\_pattern\_ops operator class, optimised for prefix search. |
 | **redis** | Yes | No | No | Yes (Best effort) | Yes | Number of record per page is not guaranteed, but best effort. |
 | **sqlite** | Yes, if sorting is required | Yes | Yes | Yes | Yes | Need to create an index on the key column. It’s a standard b-tree index.We could maintain an index of all keys in a hash |
 | **sqlserver** | Yes, if sorting is required | Yes | Yes | Yes | Yes | need to create a non-clustered index on the “key” column |
