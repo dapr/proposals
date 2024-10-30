@@ -60,14 +60,33 @@ spec:
 	...
 ...
 ```
-From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id`, `error_code`, and `error_type` like so:
+From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id` and `error_code` like so:
 ```go
-dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND", error_type="ACTOR_API"} 4
-dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_INVOKE_METHOD", error_type="ACTOR_API"} 12
-dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND", error_type="ACTOR_API"} 55
-dapr_error_code_count{app_id="service-b", error_code="ERR_DIRECT_INVOKE", error_type="SERVICE_INVOCATION_API"} 2
+dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 4
+dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_INVOKE_METHOD"} 12
+dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 55
+dapr_error_code_count{app_id="service-b", error_code="ERR_DIRECT_INVOKE"} 2
 ```
+
 Error codes are NOT currently centrally defined in a single package/file and will be a future endeavor.
+As a compromise in the short term, errors will at the least be renamed/aligned to prefixing their type so that the metrics can additionaly be filtered/organized by type.
+
+For example:
+```go
+ERR_WORKFLOW_COMPONENT_MISSING
+ERR_PURGE_WORKFLOW
+ERR_BODY_READ
+ERR_TRY_LOCK
+ERR_UNLOCK
+
+Will become:
+
+ERR_WORKFLOW_COMPONENT_MISSING
+ERR_WORKFLOW_PURGE
+ERR_HTTP_BODY_READ
+ERR_LOCK_TRY
+ERR_LOCK_UNLOCK
+```
 
 However, there are two main ways they are defined:
 
@@ -132,13 +151,13 @@ func RecordAndGet(errorCode string) string {
 }
 ```
 
-With `RecordError()` recording OpenCensus metrics like other metric recorders found in `pkg/diagnostics`, and assigning the correct tag based on the code:
+With `RecordError()` recording OpenCensus metrics like other metric recorders found in `pkg/diagnostics`:
 ```go
 func (m *errorCodeMetrics) RecordErrorCode(code string) {
 	if m.enabled {
 		_ = stats.RecordWithTags(
 			m.ctx,
-			diagUtils.WithTags(m.errorCodeCount.Name(), appIDKey, m.appID, errorCodeKey, code, errorTypeKey, GetErrorType(code)),
+			diagUtils.WithTags(m.errorCodeCount.Name(), appIDKey, m.appID, errorCodeKey, code,
 			m.errorCodeCount.M(1),
 		)
 	}
