@@ -2,7 +2,7 @@
 
 * Author(s): @jake-engelberg
 * State: Ready for Implementation
-* Updated: 2024-09-16
+* Updated: 2024-10-29
 
 ## Overview
 
@@ -60,41 +60,86 @@ spec:
 	...
 ...
 ```
-From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id` and `error_code` like so:
+From the user's perspective, the metric `dapr_error_code_count` could be split by `app-id`, `error_code`, and `error_type` like so:
 ```go
-dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 4
-dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_INVOKE_METHOD"} 12
-dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND"} 55
-dapr_error_code_count{app_id="service-b", error_code="ERR_DIRECT_INVOKE"} 2
+dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND", error_type="ACTOR_API"} 4
+dapr_error_code_count{app_id="service-a", error_code="ERR_ACTOR_INVOKE_METHOD", error_type="ACTOR_API"} 12
+dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUND", error_type="ACTOR_API"} 55
+dapr_error_code_count{app_id="service-b", error_code="ERR_DIRECT_INVOKE", error_type="SERVICE_INVOCATION_API"} 2
 ```
+Error codes are NOT currently centrally defined in a single package/file and will be a future endeavor.
 
-Error codes are currently defined as a struct, with the specific code as `APIError.tag`:
-```go
-ErrHealthNotReady  =  APIError{message: "dapr is not ready",  tag: "ERR_HEALTH_NOT_READY", httpCode: http.StatusInternalServerError,  grpcCode: grpcCodes.Internal}
-```
+However, there are two main ways they are defined:
 
-...and are currently implemented case-by-case across Dapr, but generally as-is with `log.Debug(msg)`. Metric recording would occur in tandem with the log statement:
+1. Defined as a struct in `predefined.go`, with the specific code as `APIError.tag`:
+	```go
+	ErrHealthNotReady  =  APIError{message: "dapr is not ready",  tag: "ERR_HEALTH_NOT_READY", httpCode: http.StatusInternalServerError,  grpcCode: grpcCodes.Internal}
+	```
+2. Defined, sometimes repeatedly, inline as primitive strings:
+	```go
+	if err != nil {
+		msg := NewErrorResponse("ERR_INTERNAL", "failed to encode response as JSON: "+err.Error())
+		respondWithData(w, http.StatusInternalServerError, msg.JSONErrorValue())
+		log.Debug(msg)
+		return
+	}
+	```
+
+In the future, a structure similar to `APIError` will be used to align all errors to equivalent definition.
+
+Additionally, these errors are printed generally as-is with `log.Debug(msg)`.
 ```go
 func  (a *api)  onGetHealthz(w http.ResponseWriter, r *http.Request)  {
 	if !a.readyStatus {
 		msg := messages.ErrHealthNotReady
 		respondWithError(w, msg)
 		log.Debug(msg)
-		ErrorCodeMetrics.RecordError(msg.tag)
 		return
 	}
 ...
 }
 ```
 
-With `RecordError()` simply recording OpenCensus metrics like other metric recorders found in `pkg/diagnostics`:
+By utilizing a function for each type of error code implementation, metric recording would occur whenever error codes are used with the intention of being logged:
+1. With retrieval of the `APIError` object:
+	```go
+	if err != nil {
+		return nil, messages.ErrInternal.RecordAndGet().WithFormat(err)
+	}
+	```
+	- *NOTE: This is important to maintain as the object is often used with `WithFormat()`.*
+
+2. Or with usage of the inline primitive string, when no `APIError` object exists:
+	```go
+	if err != nil {
+		return nil, status.Error(messages.RecordAndGet(messages.ErrInternal))
+	}
+	```
+	- *NOTE: This would eventually be phased out and converted to option 1 above once an object exists.*
+
+And the respective functions defined like so:
 ```go
-func (m *errorCodeMetrics) RecordError(errorCode) {
+// This will record the error as a metric and return the APIError
+func (err APIError) RecordAndGet() APIError {
+	diag.DefaultErrorCodeMonitoring.RecordErrorCode(err.tag)
+	return err
+}
+
+// This will record the error as a metric and return the APIError string
+func RecordAndGet(errorCode string) string {
+	diag.DefaultErrorCodeMonitoring.RecordErrorCode(errorCode)
+	return errorCode
+}
+```
+
+With `RecordError()` recording OpenCensus metrics like other metric recorders found in `pkg/diagnostics`, and assigning the correct tag based on the code:
+```go
+func (m *errorCodeMetrics) RecordErrorCode(code string) {
 	if m.enabled {
 		_ = stats.RecordWithTags(
 			m.ctx,
-			diagUtils.WithTags(m.errorCodesCount.Name(), appIDKey, m.appID, errorCodeKey, errorCode),
-			m.errorCodesCount.M(1),
+			diagUtils.WithTags(m.errorCodeCount.Name(), appIDKey, m.appID, errorCodeKey, code, errorTypeKey, GetErrorType(code)),
+			m.errorCodeCount.M(1),
 		)
 	}
 }
