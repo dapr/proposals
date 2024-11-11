@@ -68,26 +68,6 @@ dapr_error_code_count{app_id="service-b", error_code="ERR_ACTOR_RUNTIME_NOT_FOUN
 dapr_error_code_count{app_id="service-b", error_code="ERR_DIRECT_INVOKE"} 2
 ```
 
-Error codes are NOT currently centrally defined in a single package/file and will be a future endeavor.
-As a compromise in the short term, errors will at the least be renamed/aligned to prefixing their type so that the metrics can additionaly be filtered/organized by type.
-
-For example:
-```go
-ERR_WORKFLOW_COMPONENT_MISSING
-ERR_PURGE_WORKFLOW
-ERR_BODY_READ
-ERR_TRY_LOCK
-ERR_UNLOCK
-
-Will become:
-
-ERR_WORKFLOW_COMPONENT_MISSING
-ERR_WORKFLOW_PURGE
-ERR_HTTP_BODY_READ
-ERR_LOCK_TRY
-ERR_LOCK_UNLOCK
-```
-
 However, there are two main ways they are defined:
 
 1. Defined as a struct in `predefined.go`, with the specific code as `APIError.tag`:
@@ -157,12 +137,14 @@ func (m *errorCodeMetrics) RecordErrorCode(code string) {
 	if m.enabled {
 		_ = stats.RecordWithTags(
 			m.ctx,
-			diagUtils.WithTags(m.errorCodeCount.Name(), appIDKey, m.appID, errorCodeKey, code,
+			diagUtils.WithTags(m.errorCodeCount.Name(), appIDKey, m.appID, errorCodeKey, code, categoryKey, category,
 			m.errorCodeCount.M(1),
 		)
 	}
 }
 ```
+
+This means the errors will be filterable at the app level, category level (Pub/Sub, Crypto, Common, etc.), and the error code level.
 
 ### Acceptance Criteria
 
