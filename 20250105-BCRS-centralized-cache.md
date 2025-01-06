@@ -214,6 +214,10 @@ Each of these methods supports a cancellation token because while it's not expec
 ## Implications
 - Outside of augmenting documentation accordingly, no immediate implications of implementing this updated state store mechanism. In the longer run, as this and other state store blocks are added and mature, it might be worth revsiting completely deprecating the existing general-purpose state store, but that's well beyond the current horizon.
 
+## Open Questions
+### Dapr-managed TTL
+There are several of the state proposals (including the [object store proposal here](https://github.com/dapr/proposals/pull/18)) that could benefit from having TTL support. While both Azure Blob Store and Amazon S3 offer TTL support via lifecycle policies, I wonder to what extent it could make sense to have one uniform internal mechanism that provides TTL on top of the new scheduler API and whether that could broaden the number of providers available both to this cache proposal, but also that separate object store proposal in that TTL could be implemented as a future job that, when triggered, invokes a deletion operation. Or as in this proposal, during a refresh, simply updates the job details to trigger at a later point. This is presumably done by actors (and in turn by workflows) today, so this might be an aspect of this and other building blocks that Dapr handles instead of offloading to the providers (and thus making the Dapr-implemented API more complex for each provider - e.g. adding lifecycle management support just for TTL needs on both Azure and Amazon's clouds).
+
 ## Completion Checklist
 [] Centralized cache API code
 [] Tests added (e2e, unit)
