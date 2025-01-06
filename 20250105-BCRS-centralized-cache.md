@@ -203,6 +203,8 @@ The following reflects what the API would look like in the .NET SDK.
 | Task<bool> TryRefreshAsync(string key, out CacheProperties valuecancellationToken, CancellationToken cancellationToken) | Returns true if an unexpired key is found and false if the key is not found. If found, returns the expiration values as the `out` value. |
 | Task TryRemoveAsync(string key, CancellationToken cancellationToken) | Attempts to remove the entry with the specified key from the store. |
 
+The `CentralizedCacheOptions`
+
 Each of these methods supports a cancellation token because while it's not expected that the methods would take any substantial amount of time to complete (as that would be antithetical to the purpose of these component), it facilitates future-proofing in case the Dapr runtime supports cancellation tokens in the future, it makes the methods consistent with the expected shape of other C# async methods, it facilitates testing to enable users to simulate cancellation scenarios themselves and it allows for the operation to be canceled by the client in case of an unexpected timeout with call to the Dapr runtime.
 
 ## Implications
@@ -212,4 +214,5 @@ Each of these methods supports a cancellation token because while it's not expec
 [] Centralized cache API code
 [] Tests added (e2e, unit)
 [] SDK changes
-[] Documentation
+[] Identify which providers support this component
+[] Documentation (supported providers, purpose, set up structure for future specialty state stores)
