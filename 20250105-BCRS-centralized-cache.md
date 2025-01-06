@@ -197,13 +197,17 @@ The following reflects what the API would look like in the .NET SDK.
 
 | Method Signature | Description |
 | -- | -- |
-| Task<bool> TryAddAsync(string key, ReadOnlyMemory<byte> value, CentralizedCacheOptions options, CancellationToken cancellationToken) | Adds the specified key and value to the store along with a sliding expiration represented as a `TimeSpan` (relative to now) and an optional absolute expiration also represented as a `TimeSpan` (relative to now) or a `DateTimeOffset` (absolute and converted by the SDK to a relative duration). |
-| Task AddAsync(string key, ReadOnlyMemory<byte> value, CentralizedCacheOptions options, CancellationToken cancellationToken) | Adds the specified key and value to the store along with the expiration options provided in `TryAddAsync` and overwrites any existing information. |
-| Task<bool> TryGetAsync(string key, out CacheEntry value, CancellationToken cancellationToken) | Attempts to retrieve the value for the specified key. If the key is available, returns true and populates the `out` value with the value and expiration properties. If the key is not available, returns false. |
-| Task<bool> TryRefreshAsync(string key, out CacheProperties valuecancellationToken, CancellationToken cancellationToken) | Returns true if an unexpired key is found and false if the key is not found. If found, returns the expiration values as the `out` value. |
-| Task TryRemoveAsync(string key, CancellationToken cancellationToken) | Attempts to remove the entry with the specified key from the store. |
+| `Task<bool>` TryAddAsync(`string` key, `ReadOnlyMemory<byte>` value, `CentralizedCacheOptions` options, `CancellationToken` cancellationToken) | Adds the specified key and value to the store along with a sliding expiration represented as a `TimeSpan` (relative to now) and an optional absolute expiration also represented as a `TimeSpan` (relative to now) or a `DateTimeOffset` (absolute and converted by the SDK to a relative duration). |
+| `Task` AddAsync(`string` key, `ReadOnlyMemory<byte>` value, `CentralizedCacheOptions` options, `CancellationToken` cancellationToken) | Adds the specified key and value to the store along with the expiration options provided in `TryAddAsync` and overwrites any existing information. |
+| `Task<bool>` TryGetAsync(`string` key, out `CacheEntry` value, `CancellationToken` cancellationToken) | Attempts to retrieve the value for the specified key. If the key is available, returns true and populates the `out` value with the value and expiration properties. If the key is not available, returns false. |
+| `Task<bool>` TryRefreshAsync(`string` key, out `CacheProperties` value, cancellationToken, `CancellationToken` cancellationToken) | Returns true if an unexpired key is found and false if the key is not found. If found, returns the expiration values as the `out` value. |
+| `Task` TryRemoveAsync(string key, CancellationToken cancellationToken) | Attempts to remove the entry with the specified key from the store. |
 
-The `CentralizedCacheOptions`
+The `CentralizedCacheOptions` contains the required sliding expiration `TimeSpan` as well as an optional absolute expiration `TimeSpan`.
+
+A `CacheEntry` contains the value of the cache entry, as well as the current expiration values, as applicable, for both the sliding and optional absolute expirations. Either one should be presented as a `TimeSpan` and the SDK can handle exposing either as an absolute `DateTime` offset to UTC as a read-only property.
+
+A `CacheProperties` caontains current expiration values, as applicable, for both the sliding and optional absolute expirations. Either one should be presented as a `TimeSpan` and the SDK can handle exposing either as an absolute `DateTime` offset to UTC as a read-only property. In other words, it returns the same properties as a `CacheEntry`, but without the value.
 
 Each of these methods supports a cancellation token because while it's not expected that the methods would take any substantial amount of time to complete (as that would be antithetical to the purpose of these component), it facilitates future-proofing in case the Dapr runtime supports cancellation tokens in the future, it makes the methods consistent with the expected shape of other C# async methods, it facilitates testing to enable users to simulate cancellation scenarios themselves and it allows for the operation to be canceled by the client in case of an unexpected timeout with call to the Dapr runtime.
 
