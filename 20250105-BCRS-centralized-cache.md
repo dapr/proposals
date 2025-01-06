@@ -100,7 +100,7 @@ message GetCentralizedCacheRequest {
 // Represents the returned value and expiration properties for a given cache entry
 message CentralizedCacheValue {
     // Contains the value of the specified key.
-    byte[] value = 1;
+    google.protobuf.Any value = 1;
     // ISO 8601 duration format, updated to reflect the latest value post-touch
     string slidingExpiration = 2;
     // ISO 8601 duration format
