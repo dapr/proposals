@@ -35,6 +35,10 @@ Only one PubSub component can be marked as the actor PubSub.
 Actors will be able to subscribe to messages within their type for a particular topic.
 Subscriptions will be dynamically declared, and messages for that topic will be routed through the established bi-directional gRPC stream.
 
+Upon deactivation, either during shutdown or actor rebalancing, the subscription to all topics by the actor will be removed.
+Similarly, if an actor expires via it's idling window, actor is deactivated, and all subscriptions are removed.
+The idling timeout is reset on every subscription message received by the actor.
+
 ```proto
 message ActorSubscriptionRequest {
   // The pubsub topic
