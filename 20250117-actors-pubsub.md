@@ -97,6 +97,39 @@ Messages delivered to subscribed actors will be sent over the established stream
 
 The client response is similarly the same format as [today](https://github.com/dapr/dapr/blob/8cefe6a312867d8517a750d2dc300e10821bdf3a/dapr/proto/runtime/v1/appcallback.proto#L136).
 
+### Non-Actor Publishing
+
+Non-actor clients are able to publish messages to actor subscribers via a new `PublishActorEvent` RPC.
+This RPC is close to the existing `PublishEvent` rpc, accept that it takes an `actor_type` field rather than a `pubsub_name` field.
+This is because their is 1. only one pubsub associated with actors in that namespace, and 2. the fully qualified topic name is derived via the actor type.
+
+Publishing messages to actors will not invoke, and therefore initialize the existence of an actor, since an actor needs to be subscribing to a topic to receive messages.
+
+```proto
+  rpc PublishActorEvent(PublishActorEventRequest) returns (google.protobuf.Empty) {}
+}
+
+message PublishActorEventRequest {
+  // actor_type is the type of actor to which the message is sent.
+  string actor_type = 1;
+
+  // The pubsub topic
+  string topic = 2;
+
+  // The data which will be published to topic.
+  bytes data = 3;
+
+  // The content type for the data (optional).
+  string data_content_type = 4;
+
+  // The metadata passing to pub components
+  //
+  // metadata property:
+  // - key : the key of the message.
+  map<string, string> metadata = 5;
+}
+```
+
 ## Feature Lifecycle Outline
 
 This feature should be implemented after the actor bi-directional streaming feature is completed.
