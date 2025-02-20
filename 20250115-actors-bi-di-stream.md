@@ -106,7 +106,7 @@ message RequestAPI {
 
 Each outbound `RequestRequest` message includes a `uid` field, which is a simple incrementing `uint64`.
 This field must start at `1` and increment by `1` for each new request.
-If a message is received from Daprd with a `uid` that is not `+1` of the previous message, the stream will be terminated.
+If a message is received by Daprd from the client with a `uid` that is not `+1` of the previous message, the stream will be terminated.
 
 For all inbound messages, the client must send a corresponding processed event with the same `uid`.
 
