@@ -19,7 +19,7 @@ By enabling Actor PubSub, actors can publish messages to specific actor IDs, imp
 ### Considerations
 
 There are a number of scenarios or use cases which could benefit from an "Actor PubSub" feature.
-These include implicitly or non-implicitly subscribing to topics as an actor, whether publishing messages will spawn actors, if the message is broadcast to a single or all active actors, and if multiple topics can exist within a single actor type domain.
+These include implicitly or explicitly subscribing to topics as an actor, whether publishing messages will spawn actors, if the message is broadcast to a single or all active actors, and if multiple topics can exist within a single actor type domain.
 This proposal describes a single topic per actor type that is implicitly subscribed to by all actors of that type.
 Other scenarios can be considered in future iterations.
 
