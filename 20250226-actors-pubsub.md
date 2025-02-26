@@ -81,12 +81,15 @@ service Dapr {
 // actor ID.
 message PublishActorEventRequestAlpha1 {
   // actor_type is the type of the actor to publish to.
+  // Required.
   string actor_type  = 1;
 
   // actor_id is the ID of the actor_type to publish to.
+  // Required.
   string actor_id = 2;
 
   // method is the endpoint of the actor to invoke with the published data.
+  // Required.
   string method = 3;
 
   // The data which will be published to topic.
