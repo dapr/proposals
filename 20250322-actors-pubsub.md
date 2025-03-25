@@ -156,7 +156,7 @@ public async Task<Order> ProcessOrders(Order order)
 
 Like the declarative subscription, this identifies a route on the actor that:
 - Maps to the `pubsub` component
-- Subscribes to the `orders` topic or queue nme
+- Subscribes to the `orders` topic or queue name
 - Handles subscriptions using the `ProcessOrders` method implemented on the actor
 
 When used without a paired declarative subscription, these routes are identified exclusively at startup and are **not**
