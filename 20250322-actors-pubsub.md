@@ -355,7 +355,7 @@ subscriptions at runtime is a lightweight operation as these subscriptions may b
 - All filtering should occur on the runtime to avoid activating actors unnecessarily.
 - If a registered sink activates an actor that hasn't previously been activated, it should activate it like any other inbound
   request would.
-- PubSub invocations should follow the turn-based limitations inherent to Daor Actors already. As such, this may require
+- PubSub invocations should follow the turn-based limitations inherent to Dapr Actors already. As such, this may require
   the creation of an inbox of sorts for each actor to handle queued messages pending successful acknowledgement by the
   actor.
 
