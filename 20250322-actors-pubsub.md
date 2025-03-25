@@ -246,8 +246,8 @@ service Dapr {
 // The message containing the details for subscribing an actor to a topic via streaming or otherwise
 message SubscribeActorEventRequestAlpha1 {
     oneof subscribe_topic_events_request_type {
-        SubscribeActorTopicEventsRequestInitialApha1 initial_request = 1;
-        SubscribeActorTopicEventsRequestProcessedAlpah1 event_processed = 2;        
+        SubscribeActorTopicEventsRequestInitialAlpha1 initial_request = 1;
+        SubscribeActorTopicEventsRequestProcessedAlpha1 event_processed = 2;        
     }
 }
 
