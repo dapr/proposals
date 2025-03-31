@@ -717,8 +717,8 @@ No changes to SDKs will need to be made to support _sending_ PubSub messages to 
 - Update SDKs to support new API and protos
 
 ## Changelog
-| Date | Change                                                                                                                                                                                                                |
-| -- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Date | Change |
+| -- | -- |
 | 3/31/2025 | Removed existing CEL filtering in favor of strictly using CloudEvent filtering and specification per the Subscriptions API ([0.1 working draft](https://github.com/cloudevents/spec/blob/main/subscriptions/spec.md)) |
-| 3/31/2025 | Added HTTP and updated gRPC specification for subscription management                                                                                                                                                 |
-| 3/31/2025 | Removed programmatic and declarative subscription types in favor of only supporting streaming subscriptions in this initial release                                                                                   |
+| 3/31/2025 | Added HTTP and updated gRPC specification for subscription management 
+| 3/31/2025 | Removed programmatic and declarative subscription types in favor of only supporting streaming subscriptions in this initial release |
