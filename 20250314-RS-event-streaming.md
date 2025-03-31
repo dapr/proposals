@@ -13,7 +13,7 @@ Similar to how OpenTelemetry tracing sends data directly to the collector, this 
 
 There is no component required for this feature, and no preview feature flag - it's simply a matter of whether the config is present or not.
 If configuration is provided, Dapr will send events to the configured sinks.
-Applications and collectors can receive events by implementing the `OnEventAlpha1` endpoint, which can be configured
+Applications and collectors can receive events by implementing the `SendEventsAlpha1` endpoint, which can be configured
 for both local development and system-wide event collection.
 
 This design proposes:
@@ -23,7 +23,7 @@ This design proposes:
 
 What this means at a high level:
 - Add Events to Application Configuration (supported for both kubernetes via crds & standalone mode via config files)
-- Sinks implement the `OnEventAlpha1` endpoint to receive events
+- Sinks implement the `SendEventsAlpha1` endpoint to receive events
 - Events can be sent locally or to remote collectors (with mTLS)
 
 This feature enables:
@@ -58,7 +58,7 @@ Currently, Dapr lacks a unified way to collect and monitor system events across 
 
 This proposal solves these problems by introducing a simple, scalable event streaming system that allows Dapr users to collect and process Dapr events through
 configurable endpoints. This design enables both event handling locally for development and testing while also enabling production monitoring by sending events to
-a centralized event collection instance. Events can be sent to local applications or remote collectors via the `OnEventAlpha1` endpoint, with configuration determining
+a centralized event collection instance. Events can be sent to local applications or remote collectors via the `SendEventsAlpha1` endpoint, with configuration determining
 the destination and security requirements.
 
 ## Related Items
@@ -73,7 +73,7 @@ This [dapr/issue is related ([workflow] introduce workflow lifecycle events fire
   * Configurable event endpoints with filtering via Configuration
   * mTLS support for secure communication with remote collectors
   * Event type filtering per API
-  * Sending events to the `OnEventAlpha1` endpoint for both:
+  * Sending events to the `SendEventsAlpha1` endpoint for both:
     * Local application event handling
     * Remote system-wide event collection
   * Initial implementation in Dapr v1.16 will focus on:
@@ -223,7 +223,7 @@ Please note that the event types within each category will grow as we add more e
 
 ### Design
 
-The proposed event streaming architecture introduces the `OnEventAlpha1` endpoint which can be used for both:
+The proposed event streaming architecture introduces the `SendEventsAlpha1` endpoint which can be used for both:
 - Local application event handling (within the same pod)
 - Remote system-wide event collection (across pods)
 
@@ -233,14 +233,14 @@ Here's a high-level overview of the architecture:
 
 The diagram shows:
 1. Pod A/C contain Dapr sidecars that:
-- Send events to their local apps through `OnEventAlpha1` (configured with localhost)
-- Send events directly to the collector-app through `OnEventAlpha1`
+- Send events to their local apps through `SendEventsAlpha1` (configured with localhost)
+- Send events directly to the collector-app through `SendEventsAlpha1`
 2. Pod B contains:
 - Only a collector-app (no Dapr sidecar needed)
-- Serves `OnEventAlpha1` endpoint with mTLS using Sentry certificate
+- Serves `SendEventsAlpha1` endpoint with mTLS using Sentry certificate
 3. Events flow:
-- From Dapr sidecars to their local apps via `OnEventAlpha1`
-- From Dapr sidecars to the collector-app via `OnEventAlpha1`
+- From Dapr sidecars to their local apps via `SendEventsAlpha1`
+- From Dapr sidecars to the collector-app via `SendEventsAlpha1`
 - Secured via mTLS using Sentry certificates
 - No service invocation needed since collector-app is not Dapr-enabled
 
@@ -263,7 +263,7 @@ When configuration is provided:
     - For local apps: `mtls: false`
   - `filters`: Optional event filtering configuration
 - When configured, events are sent to:
-  - `OnEventAlpha1` endpoint for gRPC
+  - `SendEventsAlpha1` endpoint for gRPC
   - HTTP is not supported
 
 ###### Collector Configuration
@@ -333,14 +333,14 @@ spec:
 
 ##### Configuration Validation:
 ```go
-// Prevent self-referential event configurations
+// Prevent self-referential event configurations by comparing both host and port
 if sinkAddress == ownAddress {
-    return fmt.Errorf("sink address cannot be the same as the Dapr sidecar's own address")
+    return fmt.Errorf("sink address (host:port) cannot be the same as the Dapr sidecar's own address")
 }
 ```
 
 ##### Protos
-`OnEventAlpha1` is added to `SinkEventsAlpha` service inside a new `dapr/proto/events/v1alpha1/events.proto` with the following events:
+`SendEventsAlpha1` is added to `SinkEventsAlpha` service inside a new `dapr/proto/events/v1alpha1/events.proto` with the following events:
 
 ```protobuf
 syntax = "proto3";
@@ -355,8 +355,8 @@ import "dapr/proto/events/v1alpha1/jobs.proto";
 
 // SinkEventsAlpha is the service non-Dapr applications implement to receive events from Dapr instances
 service SinkEventsAlpha {
-  // OnEventAlpha1 receives events from Dapr instances. The application must serve this endpoint with mTLS using a Sentry-issued certificate.
-  rpc OnEventAlpha1(stream EventRequest) returns (EventResponse);
+  // SendEventsAlpha1 receives events from Dapr instances. The application must serve this endpoint with mTLS using a Sentry-issued certificate.
+  rpc SendEventsAlpha1(stream EventRequest) returns (EventResponse);
 }
 
 message EventRequest {
@@ -675,11 +675,11 @@ func handleEvent(request *pb.EventRequest) error {
 
 * Code changes
   * Support configuration CRD for both kubernetes & standalone mode
-  * Support sending events to the `OnEventAlpha1` endpoint
+  * Support sending events to the `SendEventsAlpha1` endpoint
   * Protos for events
     * Workflow events will be done first, then Actors, then the rest of the APIs
 * Tests added (e2e, unit)
-* SDK changes to support `OnEventAlpha1` endpoint
+* SDK changes to support `SendEventsAlpha1` endpoint
 * Documentation
 * Metrics should be added after dapr v1.16:
   - Track event counts by API type and scope (local/remote)
