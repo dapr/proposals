@@ -51,7 +51,7 @@ PubSub component is valid to be used as-is without changes. This limits the amou
 to use this new capability and repurposes already existing functionality to enable new use cases.
 
 To be clear, this means that the original proposal's "actorpubsub" annotation on a single pubsub component would **NOT**
-apply here as there would be no "central" pubsub component used. Rather, this proposal is a broadening of the existing
+apply here as there would be no "central" PubSub component used. Rather, this proposal is a broadening of the existing
 PubSub functionality paired specifically with existing Actor use cases.
 
 ### Actor Type Subscription
@@ -81,7 +81,7 @@ instances, it can dramatically lighten the load of the Dapr runtime in serving t
 clients services, especially when paired with runtime-side event routing.
 
 By allowing that individual actors opt-in to receiving not only any message, but allowing multiple
-subscriptions even to the same pubsub source (potentially applying different filters), this simplifies the concept and
+subscriptions even to the same PubSub source (potentially applying different filters), this simplifies the concept and
 clearly identifies which actor instances need to be rehydrated when applicable messages are received.
 
 Today, Dapr supports applications subscribing to PubSub queue and topic events via:
@@ -89,87 +89,20 @@ Today, Dapr supports applications subscribing to PubSub queue and topic events v
 - `Declarative subscriptions` by specifying subscriptions via YAML manifests in Self-Hosted and Kubernetes modes
 - `Streaming subscriptions` by dynamically registering new subscriptions for receipt via gRPC-based long-lived connections
 
-Each of these existing concepts remain consistent through this proposal as well and will be demonstrated below.
-
-### Declarative Actor Subscriptions
-Declarative subscriptions are described in YAML and provided both at application startup and via "hot reload" thereafter
-without needing a restart. These subscriptions can be made to whole actors per the aforementioned restrictions or
-to individual actor IDs.
-
-The file format is very similar to the style used for typical PubSub declarative subscriptions, but adds the actor type,
-method and optional instance.
-
-This example uses a YAML component file named `my-subscription.yaml`.
-
-```yaml
-apiVersion: dapr.io/v2alpha1
-kind: ActorSubscription
-metadata:
-  name: order
-spec:
-  topic: orders
-  routes:
-    actor_type: myactor  
-    method: processorders
-    actor_id:
-      - 1
-      - 2
-      - 3
-      - 4
-  pusubname: pubsub
-```
-
-Here, the subscription is called `order` and:
-- Uses the PubSub component called `pubsub` to subscribe to the topic called `orders`
-- Defines the routes to the actors by sending all topic messages to the actor type `myactor` by invoking the method
-  `processorders` but only on the actor IDs `1`, `2`, `3`, and `4`.
-- If the `scopes` field were set, it could further scope this subscription for access only by the apps with the specified
-  identifier, even if actor types existed in a broader set of apps.
-
-The implementation on the actor will require annotations provided by the SDKs that register the appropriate routes and
-metadata at startup to accommodate these requests. This is described in the following `Programmatic` section - to be
-clear, while declarative subscriptions can be modified after runtime by hot-reloading the YAML components, the use
-of the static programmatic routes themselves absent this declarative component will not themselves be dynamic. This
-is identical to the existing PubSub paradigm in Dapr.
-
-
-### Programmatic Actor Instance Subscriptions
-Programmatic subscriptions are declared within the actors' code and the specific implementation will vary by SDK.
-Here, I describe a proposed implementation using the Dapr .NET SDK. It takes an approach similar to that of
-subscriptions using the existing PubSub API in order to promote consistency and leverage existing developer investment
-in Dapr familiarity.
-
-Because the subscription is executed only when a specific actor instance is executed, a programmatic subscription
-cannot subscribe an entire actor type to the published messages. Rather, it will subscribe only the actor ID of the
-instance it's running as when initialized.
-
-Accordingly, these subscriptions are intended to be used only within types inheriting from `Actor`.
-
-```cs
-[Topic("pubsub", "orders")]
-public async Task<Order> ProcessOrders(Order order)
-{
-    //Logic
-    return order;
-}
-```
-
-Like the declarative subscription, this identifies a route on the actor that:
-- Maps to the `pubsub` component
-- Subscribes to the `orders` topic or queue name
-- Handles subscriptions using the `ProcessOrders` method implemented on the actor
-
-When used without a paired declarative subscription, these routes are identified exclusively at startup and are **not**
-to be considered dynamic. This is the
-[same guidance](https://docs.dapr.io/developing-applications/building-blocks/pubsub/subscription-methods/#programmatic-subscriptions)
-currently given for Dapr PubSub programmatic subscriptions as well, so nothing has changed here.
+After discussion with other maintainers in the last couple of sync calls, this proposal has been narrowed to only
+support streaming subscriptions in its initial implementation. Future need for Programmatic or Declarative subscriptions 
+can be evaluated for a future Dapr release.
 
 ### Streaming Actor Subscriptions
-Like programmatic actor subscriptions, streaming subscriptions are created within the actor code and the specific
-implementation will vary by SDK. Here, rather than provide an example of the downstream implementation, I'll stick to
-the prototype signature. Unlike programmatic subscriptions, these subscriptions can subscribe a whole actor type or
-one or more actor IDs and as such, do not need to be implemented within an actor or host the actor type to use, but
-can be.
+Like existing Dapr streaming PubSub subscriptions, such subscriptions are created to apply to actor code and the specific
+implementation will vary by SDK. Unlike programmatic subscriptions, these subscriptions can subscribe a whole actor 
+type or one or more actor IDs and as such, do not need to be within an actor or even host the actor type to be 
+registered, but can be.
+
+Such subscriptions are created via either an HTTP or gRPC implementation as described in the implementation section
+later in this proposal and resemble the existing streaming pubsub subscription model with changes to support the latest 
+versions of the [(WIP) CloudEvents subscription specification](https://github.com/cloudevents/spec/blob/main/subscriptions/spec.md)
+and 1.0.2, of the [CloudEvents message specification](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md).
 
 ## Publish Actor Event API
 There is no proposed change from the existing Dapr PubSub implementation for publishing an event into PubSub 
@@ -788,3 +721,4 @@ No changes to SDKs will need to be made to support _sending_ PubSub messages to 
 | -- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 3/31/2025 | Removed existing CEL filtering in favor of strictly using CloudEvent filtering and specification per the Subscriptions API ([0.1 working draft](https://github.com/cloudevents/spec/blob/main/subscriptions/spec.md)) |
 | 3/31/2025 | Added HTTP and updated gRPC specification for subscription management                                                                                                                                                 |
+| 3/31/2025 | Removed programmatic and declarative subscription types in favor of only supporting streaming subscriptions in this initial release                                                                                   |
