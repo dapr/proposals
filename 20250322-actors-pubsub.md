@@ -713,8 +713,8 @@ SDKs will need to be updated to support receiving Actor PubSub messages.
 No changes to SDKs will need to be made to support _sending_ PubSub messages to actors or other endpoints.
 
 ## Feature Lifecycle Outline
-- Add `SubscribeActorEventAlpha1` API
-- Update SDKs to support `SubscribeActorEventAlpha1` API
+- Add new prototype implementation to runtime
+- Update SDKs to support new API and protos
 
 ## Changelog
 | Date | Change                                                                                                                                                                                                                |
