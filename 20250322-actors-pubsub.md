@@ -188,6 +188,20 @@ discussion to instead favor a gRPC-only implementation as it's a more natural fi
 
 ##### Creating a Subscription
 It is expected that at a minimum, an implementation of this proposal includes the capability to create a subscription.
+More than one sink should be allowed to be specified as part of this message so that multiple actor types and/or actor
+instance IDs can be subscribed to in a single request.
+
+While at first glance, it looks like there's an opportunity for deduplication of subscriptions on this front, I would
+urge caution in doing so. For example, different subscriptions may specify a sink pointing to a broad actor type and
+still others may specify individual actor IDs of that type, after consultation with @joshvanl, I would propose that 
+by default all deduplication should occur when a message is received by the runtime as part of the delivery mechanism.
+This is discussed further in [this section](#event-message-routing). 
+
+Moreover, while the presence of multiple sinks was considered, as these would be tied to the same `subscription_id` 
+going forward and the sinks themselves not individually managed, I would propose that this over-complicates deduplication,
+sourcing and management operations. Requiring a one-to-one relationship of one sink to one `subscription_id` simplifies
+this on all fronts.
+ 
 
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
@@ -358,7 +372,8 @@ message GetSubscribeActorResponse {
 ```
 
 ##### Deleting a Subscription
-It is expected that at a minimum, an implementation of this proposal includes the capability to delete a subscription.
+It is expected that at a minimum, an implementation of this proposal includes the capability to delete one or
+more subscriptions at a time.
 
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
@@ -367,10 +382,10 @@ service Dapr {
   rpc DeleteSubscribeActorEventAlpha1(DeleteSubscribeActorEventRequestAlpha1) returns (google.protobuf.Empty) {}
 }
 
-// This message defines the request to make to delete a registered Actor PubSub subscription
+// This message defines the request to make to delete one or more registered Actor PubSub subscriptions
 message DeleteSubscribeActorEventRequestAlpha1 {
-  // Required: The identifier of the subscription to delete
-  string subscription_id = 1;
+  // Required: The identifier(s) of the subscription(s) to delete
+  repeated string subscription_id = 1;
 }
 ```
 
@@ -480,6 +495,9 @@ Upon the daprd runtime receiving an actor PubSub message, the runtime will:
 - Unwrap the CloudEvent envelope and evaluate which subscriptions are a match for the indicated `type` value
 - Evaluate the `filters` for each matching subscription and discard those subscriptions that don't evaluate as true
 for all provided expressions in the subscription filters property
+- If there is more than one matching sink for successfully evaluated filters for any given actor ID (e.g. there exists
+a subscription for both the actor ID and its actor type for the same method), the sinks should be deduplicated so the
+message is sent to each actor ID only a single time per method.
 - Send the message to the sink specified in each filtered subscription
 
 The data payload should be serialized per the latest (v1.0.2) 
@@ -525,3 +543,5 @@ No changes to SDKs will need to be made to support _sending_ PubSub messages to 
 | 3/31/2025 | Added HTTP and updated gRPC specification for subscription management 
 | 3/31/2025 | Removed programmatic and declarative subscription types in favor of only supporting streaming subscriptions in this initial release |
 | 4/8/2025 | Removed HTTP API implementation in favor of making this proposal strictly gRPC-based |
+| 4/8/2025 | Added language clarifying event deduplication and why multiple sinks per subscription isn't part of proposal |
+| 4/8/2025 | Supports bulk subscription deletion |
