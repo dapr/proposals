@@ -180,71 +180,14 @@ subscription so that there is no substantive difference in how one subscription 
 the burden on the runtime to juggle different approaches.
 
 #### Subscription Management Operations
-The following are the operations that should be exposed in the API for the management of subscriptions in Dapr.
+The following are the operations that should be exposed in the API for the management of subscriptions in Dapr. While a
+previous iteration of this proposal provided for a REST-like HTTP API, this has since been modified following further
+discussion to instead favor a gRPC-only implementation as it's a more natural fit for our goals here:
+- A streaming connection requires that there be a specific client on the other end to receive messages
+- It allows for long-lived bidirectional connections improving performance
 
 ##### Creating a Subscription
 It is expected that at a minimum, an implementation of this proposal includes the capability to create a subscription.
-
-###### HTTP Specification
-Create a subscription using HTTP by defining the information contained in the subscription object defined above.
-
-```cURL
-POST http://localhost:<daprPort>/v1.0/actor-subscriptions/create
-```
-
-Note that the subscription ID can only contain alphanumeric characters, underscores and dashes. Rather than include
-redundant parameters in the POST request, all information about the PubSub component name, the topic and other necessary
-information will be derived from the request body instead.
-
-```json
-{
-  // Optional: The unique identifier of the subscription in the scope of the subscription manager. If not set by
-  // the developer, it should be set by the runtime when registering the subscription.
-  // This is used to perform management operations on the subscription going forward (e.g. get, update, delete)
-  "id": "[a subscription manager-scoped unique string]",
-  // Required: Identifies the PubSub component and topic from which the event is sourced from
-  "source": "<pubsub_component_name>/<pubsub_topic_name>",
-  // Optional: The types of events the subscriber is interested in receiving. If specified on a subscription request,
-  // all events generated MUST have a CloudEvents type property that matches one of the provided values 
-  "types": [
-    "io.dapr.event.sent",
-    "io.dapr.workflow.activity.started"
-  ],
-  // Optional: If specified, an array of at least one ilter expression that evaluates to true or false. Delivery 
-  // should be performedonly if ALL of the expressions evaluate as true.
-  // Must support the following dialects:
-  // - exact: The value of the matching CloudEvent attribute MUST exactly match the specified value (case-sensitive)
-  // - prefix: The value of the matching CloudEvent attribute MUST exactly start with the specified value (case-sensitive)
-  // - suffix: The value of the matching CloudEvent attribute MUST exactly end with the specified value (case-sensitive)
-  // - all: Expressed as an array of at least one expression, all nested filter expressions must evaluate to true for the expression to be true
-  // - any: Expressed as an array of at least one expression, any of the nested filter expressions must evaluate to true for the expression to be true
-  // - not: The result of the filter expression is the inverse of the nested expression (e.g. if the expression evaluates as true, the result is false).
-  "filters": [
-    {"exact":  {"type":  "io.dapr.event.sent"}},
-    {"prefix": {"type":  "io.dapr.event.", "subject":  "<pubsub_topic"} }
-  ],
-  // Required: The destination actor to which events MUST be sent if the filters evaluate as true
-  // The last segment, "/<actor_id>" is optional and should only be present for a subscription that is specific to an actor instance
-  "sink": "https://dapr.io/events/<actor_type>/<actor_method>/<actor_id>"
-}
-```
-
-The following are the HTTP response codes that should be provided in response to this request:
-
-| Code | Description | Notes                                                                                                                                                                                                      |
-| -- | -- |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 202 | Accepted | -                                                                                                                                                                                                          |
-| 400 | Request was malformed | Where possible, the runtime should seek to provide information in the body of the response as a string value indicating what about the request was malformed so the SDK can share this with the developer. |
-| 409 | ID provided is already in use by another registered subscription | Changing the ID alone is not a guarantee that the request isn't otherwise malformed and won't throw a 400 on the next attempt. |                                                                            |                                                                                                                                                                                                         |                                                                                                                                                                                                        |
-| 500 | The request appears to be formatted correctly, but there was an error in the Dapr runtime. |
-
-Additionally, if the runtime returns a `202 Accepted`, the body should contain the following as a JSON value so that the 
-SDKs can extract the ID of the subscription even if it was not specified:
-```json
-{
-  "id": "<subscription_identifier>"
-}
-```
 
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
@@ -376,38 +319,6 @@ SubscribeActorEventSubscriptionFailureResponseAlpha1 {
 It is expected that at a minimum, an implementation of this proposal will include the capability to retrieve an existing
 subscription.
 
-###### HTTP Specification
-```cURL
-GET http://localhost:<daprPort>/v1.0/actor-subscriptions/manage/<actor-subscription-id>
-```
-
-Note that a valid subscription ID can only contain alphanumeric characters, underscores and dashes. 
-
-The following are the HTTP response code that should be provided in response to this request:
-| Code | Description | 
-| -- | -- |
-| 200 | Returns the subscription object in the response body as a JSON object |
-| 404 | Unable to locate a subscription object with the specified actor subscription identifier |
-| 500 | The request appears to be formatted correctly, but there was an error in the Dapr runtime. |
-
-If the runtime returns a `200 OK`, the body should contain the following as a JSON value matching the value of the subscription
-as presently registered.
-```json
-{
-  "id": "[a subscription manager-scoped unique string]",
-  "source": "<pubsub_component_name>/<pubsub_topic_name>", 
-  "types": [
-    "io.dapr.event.sent",
-    "io.dapr.workflow.activity.started"
-  ],
-  "filters": [
-    {"exact":  {"type":  "io.dapr.event.sent"}},
-    {"prefix": {"type":  "io.dapr.event.", "subject":  "<pubsub_topic"} }
-  ],
-  "sink": "https://dapr.io/events/<actor_type>/<actor_method>/<actor_id>"
-}
-```
-
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
 
@@ -449,25 +360,6 @@ message GetSubscribeActorResponse {
 ##### Deleting a Subscription
 It is expected that at a minimum, an implementation of this proposal includes the capability to delete a subscription.
 
-###### HTTP Specification
-Delete an existing Actor PubSub subscription by making a `DELETE` request to the following endpoint:
-
-```cURL
-DELETE http://localhost:<daprPort>/v1.0/actor-subscriptions/manage/<actor-subscription-id>
-```
-
-Note that the subscription ID can only contain alphanumeric characters, underscores and dashes.
-
-The following are the HTTP response codes that should be provided in response to this request:
-
-| Code | Description                                              |
-| -- |----------------------------------------------------------|
-| 202 | The subscription has been deleted with immediate effect. |
-| 404 | The specified subscription identifier could not be located, so no changes were made. |
-| 500 | The request appears to be formatted correctly, but there was an error in the Dapr runtime. |
-
-No body should be returned in the response for any of the possible HTTP status codes.
-
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
 ```protobuf
@@ -487,44 +379,6 @@ While not absolutely required for an initial implementation of this proposal, ha
 would be ideal and would at least halve the number of requests otherwise necessary to do the same as a workaround 
 (e.g. get a subscription, change the necessary properties, delete the subscription, create a subscription with the 
 newly updated properties).
-
-###### HTTP Specification
-Update an existing Actor PubSub subscription by replacing the existing subscription with updated properties through a
-PUT request with the changed values. Ideally, this should be preceded with a GET request to retrieve the latest 
-properties of the request, but this should not be enforced or validated by the runtime as it's outside of scope and 
-can be added later if there's appropriate demand (e.g. etag support).
-
-```cURL
-PUT http://localhost<daprPort>/v1.0/actor-subscriptions/manage/<actor-subscription-id>
-```
-
-Note that the subscription ID can only contain alphanumeric characters, underscores and dashes. The following details
-an example of the expected body of this PUT request:
-
-```json
-{
-  "id": "[a subscription manager-scoped unique string]",
-  "source": "<pubsub_component_name>/<pubsub_topic_name>", 
-  "types": [
-    "io.dapr.event.sent",
-    "io.dapr.workflow.activity.started"
-  ],
-  "filters": [
-    {"exact":  {"type":  "io.dapr.event.sent"}},
-    {"prefix": {"type":  "io.dapr.event.", "subject":  "<pubsub_topic"} }
-  ],
-  "sink": "https://dapr.io/events/<actor_type>/<actor_method>/<actor_id>"
-}
-```
-
-The following are the HTTP response codes that should be provided in response to this request:
-
-| Code | Description |
-| 202 | Accepted and will take immediate effect |
-| 400 | Request was malformed | Where possible, the runtime should seek to provide information in the body of the response as a string value indicating what about the request was malformed so the SDK can share this with the developer. |
-| 404 | Unable to locate an existing subscription for the indicated actor subscription ID so no changes made. This should not register a new subscription as a fallback. |
-| 500 | The request appears to be formatted correctly, but there was an error in the Dapr runtime. |
-
 
 ###### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
@@ -564,58 +418,6 @@ While not absolutely required for an initial implementation of this proposal, ha
 subscriptions would be ideal and especially until we have more specialized states better capable of handling lists of 
 values, would simplify management of since-unnecessary subscriptions. This needn't include any detailed filtering in the
 initial release and instead should only filter by actor type and instance, if specified at all.
-
-###### HTTP Specification
-Query the existing Actor PubSub subscriptions by making a GET request to the following endpoint:
-```cURL
-// List all
-GET http://localhost:<daprPort>/v1.0/actor-subscriptions/query
-
-// List by actor type
-GET http://localhost:<daprPort>/v1.0/actor-subscriptions/query/actor/<actor-type>
-
-// List by actor instance
-GET http://localhost:<daprPort>/v1.0/actor-subscriptions/query/actor/<actor-type>/instance/<actor-id>
-```
-
-The following are the HTTP response codes that should be provided in response to this request:
-| Code | Description |
-| -- | -- |
-| 200 | Returns the one or more subscription objects associated with the query in the response body as JSON. |
-| 404 | Unable to locate any registered subscriptions for the specified endpoint filter. |
-| 500 | The request appears to be formatted correctly, but there was an error in the Dapr runtime. |
-
-If the runtime returns a `200 OK`, the body should contain the following as a JSON array comprised of each of the
-subscription objects:
-
-```json
-[
-  {
-    "id": "[a subscription manager-scoped unique string]",
-    "source": "<pubsub_component_name>/<pubsub_topic_name>",
-    "types": [
-      "io.dapr.event.sent"
-    ],
-    "filters": [
-      {"exact":  {"type":  "io.dapr.event.sent"}},
-      {"prefix": {"type":  "io.dapr.event.", "subject":  "<pubsub_topic"} }
-    ],
-    "sink": "https://dapr.io/events/<actor_type>/<actor_method>/<actor_id>"
-  },
-  {
-    "id": "[another subscription manager-scoped unique string]",
-    "source": "<pubsub_component_name>/<pubsub_topic_name>",
-    "types": [
-      "io.dapr.workflow.activity.started"
-    ],
-    "filters": [
-      {"exact":  {"type":  "io.dapr.event.sent"}},
-      {"prefix": {"type":  "io.dapr.event.", "subject":  "<pubsub_topic"} }
-    ],
-    "sink": "https://dapr.io/events/<actor_type>/<actor_method>/<actor_id>"
-  }
-]
-```
 
 ##### gRPC Specification
 The following defines the gRPC prototypes necessary to implement this functionality at a minimum:
@@ -722,3 +524,4 @@ No changes to SDKs will need to be made to support _sending_ PubSub messages to 
 | 3/31/2025 | Removed existing CEL filtering in favor of strictly using CloudEvent filtering and specification per the Subscriptions API ([0.1 working draft](https://github.com/cloudevents/spec/blob/main/subscriptions/spec.md)) |
 | 3/31/2025 | Added HTTP and updated gRPC specification for subscription management 
 | 3/31/2025 | Removed programmatic and declarative subscription types in favor of only supporting streaming subscriptions in this initial release |
+| 4/8/2025 | Removed HTTP API implementation in favor of making this proposal strictly gRPC-based |
