@@ -75,6 +75,12 @@ message RerunWorkflowFromActivityResponse {
 }
 ```
 
+The Orchestration protos will be updated to include a new `uint64 attempt` field which signals the attempt number which the current workflow is on.
+Starts from zero.
+Each rerun will increment the attempt number by one.
+The Orchestration protos will also include an optional `optional string rerunFrom` which will be set to the instance ID for which the workflow was rerun from.
+If the workflow is not created from a rerun, this field will be nil.
+
 ### Getting Instance History
 
 As a compliment to the `RerunWorkflowFromActivity` API, a new API is added to get the history of run activities for a workflow instance.
