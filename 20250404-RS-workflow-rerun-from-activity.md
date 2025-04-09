@@ -33,14 +33,14 @@ Rerunning a workflow which is currently in progress does not make any practical 
 Attempting to do so will return an error to the client.
 
 When rerunning a workflow, the workflow will be started from the event ID of an Activity in the history.
-The workflow actor will delete all history events after the event ID of the Activity chosen.
-The client can give an optional _new_ input to the Activity to which the workflow will be rerun from.
+The client must give a _new_ input to the Activity to which the workflow will be rerun from.
+The workflow history up until the event ID of the Activity will be cloned.
 If defined, the activity will be started with the new input data.
 If no input is given, the activity will be started with the same input as the original workflow.
 
 The client can optionally give a new instance ID to use when rerunning the workflow.
 This is useful for when the client wishes to preserve the history of the source workflow that is being rerun.
-By default, `RerunWorkflowFromActivity` will use the same instance ID as the source workflow, and therefore delete all history up until the event ID of the Activity chosen.
+`RerunWorkflowFromActivity` must have a new instance ID to clone the workflow up until the event ID from.
 
 If the targeted `eventID` does not exist, or is not an Activity event, the API will return an error to the client.
 
@@ -59,9 +59,9 @@ message RerunWorkflowFromActivityRequest {
   // the event id to start the new workflow instance from.
   int32 eventID = 2;
 
-  // newInstanceID is the optional new instance ID to use for the new workflow
+  // newInstanceID is the new instance ID to use for the new workflow
   // instance.
-  optional string newInstanceID = 3;
+  string newInstanceID = 3;
 
   // input can optionally given to give the new instance a different input to
   // the next Activity event.
@@ -132,7 +132,7 @@ This API will be exposed on all durabletask SDKs.
 The semantics are generally dependant on the flavour of each SDK language, however-
 - The `instanceID` is a required string to target for the rerun.
 - The `eventID` is a required int32 to target the Activity for the rerun.
-- An optional `newInstanceID` string which preserves the existing workflow history, and reruns the workflow from the event ID of the Activity to the new instance ID.
+- The `newInstanceID` is a required string, and reruns the workflow from the event ID of the Activity to the new instance ID.
 - An optional `input` which, if defined, will be used as the input to the targeted Activity when rerunning the workflow.
 
 ## Completion Checklist
