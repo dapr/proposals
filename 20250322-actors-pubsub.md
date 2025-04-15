@@ -154,7 +154,7 @@ A subscription, per this specification and using each of the required filter dia
     // Required: The name of the PubSub topic/queue the event is sourced from
     "topic": "<pubsub_topic_name>"
   },
-  // Optional: If specified, an array of at least one ilter expression that evaluates to true or false. Delivery 
+  // Optional: If specified, an array of at least one filter expression that evaluates to true or false. Delivery 
   // should be performedonly if ALL of the expressions evaluate as true.
   // Must support the following dialects:
   // - exact: The value of the matching CloudEvent attribute MUST exactly match the specified value (case-sensitive)
