@@ -679,7 +679,6 @@ func handleEvent(request *pb.EventRequest) error {
   * Protos for events
     * Workflow events will be done first, then Actors, then the rest of the APIs
 * Tests added (e2e, unit)
-* SDK changes to support `SendEventsAlpha1` endpoint
 * Documentation
 * Metrics should be added after dapr v1.16:
   - Track event counts by API type and scope (local/remote)
