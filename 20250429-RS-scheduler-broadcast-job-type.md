@@ -54,7 +54,7 @@ This manager will take informer events from go-etcd-cron, sending PUT and DELETE
 The Scheduler will trigger all appropriate connected clients concurrently during trigger events.
 It is not expected that clients would return any response code to a trigger execution other than SUCCESS, as these jobs are generally intended (at least for the initial use cases) to provide object manifests- not triggering some execution.
 A client failing to return the response of a trigger should be considered as a failed connection.
-In any case, to account for future use cases, the trigger response codes should considered a logical AND whereby failed calls will be retired on each failed client call according to the Jobs Failure Policy.
+In any case, to account for future use cases, the trigger response codes should considered a logical AND whereby failed calls will be retried on each failed client call according to the Jobs Failure Policy.
 
 Broadcast jobs can either expire according to its schedule, or be deleted by a client.
 
