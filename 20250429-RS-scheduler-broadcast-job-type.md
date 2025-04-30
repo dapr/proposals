@@ -262,7 +262,7 @@ Notice that the due time may be set to infinite (the actor ID can only be delete
 Since the job will be created abstractedly from the application by the runtime, the name will be generated with the following form; `__internal__$actor-type__$actor-id`.
 This job type will return an `already exists` error if a PUT is attempted on an existing durable Actor ID.
 The data field of the job will include a `common.InvokeRequest` proto message, detailing how the actor will be invoked.
-The HTTP Verb of the invocation request defined will be ignored, in favour of always using a PUT or DELETE.
+The HTTP Verb of the app Actor invocation request defined will be ignored, in favour of always using a POST or DELETE.
 
 Schedule:
 ```json
