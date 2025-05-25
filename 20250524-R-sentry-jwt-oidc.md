@@ -95,24 +95,47 @@ tokenProvider := func(ctx context.Context) (string, error) {
 }
 ```
 
+### Proposed Configuration
+
+Audiences will be read by Sentry from the app's configuration, allowing each application to specify its own audience claim for the JWT. If not specified, the default audience will be the trust domain.
+
+```go
+// ConfigurationSpec is the spec for a configuration.
+type ConfigurationSpec struct {
+    // Existing fields...
+
+	// +optional
+	AccessControlSpec *AccessControlSpec `json:"accessControl,omitempty"`
+}
+
+// AccessControlSpec is the spec object in ConfigurationSpec.
+type AccessControlSpec struct {
+    // Existing fields...
+
+	// +optional
+	Audiences []string `json:"audiences,omitempty" yaml:"audiences,omitempty"`
+}
+```
+
 ### Proposed Sentry Configuration Flags
 
 **JWT-related flags:**
-- `--jwt-enabled` (bool): Enable JWT token issuance by Sentry
-- `--jwt-key-filename` (string): JWT signing key filename
-- `--jwks-filename` (string): JWKS (JSON Web Key Set) filename
+- `--jwt-enabled` (bool): Enable JWT token issuance by Sentry (default: `false`)
+- `--jwt-key-filename` (string): JWT signing key filename (default: `jwt.key`)
+- `--jwks-filename` (string): JWKS (JSON Web Key Set) filename (default: `jwks.json`)
 - `--jwt-issuer` (string): Issuer value for JWT tokens (no issuer if empty)
-- `--jwt-signing-algorithm` (string): Algorithm for JWT signing, must be supported by signing key
-- `--jwt-key-id` (string): Key ID (kid) for JWT signing
+- `--jwt-signing-algorithm` (string): Algorithm for JWT signing, must be supported by signing key. (default: `RS256`, options: https://github.com/lestrrat-go/jwx/blob/3430caec7d1283f2f95de5e065aed1eaba47bc32/jwa/signature_gen.go#L18)
+- `--jwt-key-id` (string): Key ID (kid) for JWT signing (default: base64 encoded SHA-256 of the key)
 
 **OIDC-related flags:**
-- `--oidc-http-port` (int): Port for the OIDC HTTP server (disabled if 0)
-- `--oidc-jwks-uri` (string): Custom URI for external JWKS access
-- `--oidc-path-prefix` (string): Path prefix for all OIDC HTTP endpoints
-- `--oidc-domains` (string slice): Allowed domains for OIDC HTTP endpoint requests
-- `--oidc-server-tls-cert-file` (string): TLS certificate file for OIDC HTTP server (required if enabled)
-- `--oidc-server-tls-key-file` (string): TLS key file for OIDC HTTP server (required if enabled)
-- `--oidc-server-tls-enable` (bool): Serve OIDC HTTP with TLS
+- `--oidc-server-listen-port` (int): Port for the OIDC HTTP server (0 for random, `nil` for disabled)
+- `--oidc-server-listen-address` (string): Address for the OIDC HTTP server (default: `localhost`)
+- `--oidc-server-tls-enable` (bool): Serve OIDC HTTP with TLS (default: `true`)
+- `--oidc-server-tls-cert-file` (string): TLS certificate file for OIDC HTTP server (required if `oidc-server-tls-enable` enabled)
+- `--oidc-server-tls-key-file` (string): TLS key file for OIDC HTTP server (required if `oidc-server-tls-enable` enabled)
+- `--oidc-jwks-uri` (string): Custom URI for external JWKS access (default: `nil`)
+- `--oidc-path-prefix` (string): Path prefix for all OIDC HTTP endpoints (default: `nil`)
+- `--oidc-domains` (string slice): Allowed domains for OIDC HTTP endpoint requests (default: `nil`)
 
 ### Feature lifecycle outline
 
