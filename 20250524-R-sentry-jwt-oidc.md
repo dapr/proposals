@@ -137,6 +137,14 @@ type AccessControlSpec struct {
 - `--oidc-path-prefix` (string): Path prefix for all OIDC HTTP endpoints (default: `nil`)
 - `--oidc-domains` (string slice): Allowed domains for OIDC HTTP endpoint requests (default: `nil`)
 
+### Propose Key Management
+
+If no signing key or JWKS is provided, Sentry will automatically generate a new RSA key and JWKS on startup. The JWKS will be served at the `/jwks.json` endpoint, and the JWT signing key will be used for issuing JWTs.
+The existing mechanism for generating x.509 certificates will be extended to support the generation of the JWT signing key and JWKS. The generated signing key will use the RS256 algorithm by default as this is the most widely supported and avoids incompatibility issues when federating with cloud providers and third-party systems.
+The user can also provide a pre-generated signing key and JWKS file, which Sentry will use instead of generating them.
+The JWKS can be used to verify JWTs signed by multiple keys but Sentry can only sign JWTs with one key at a time. It is the user's responsibility to manage key rotation and ensure the JWKS is updated accordingly.
+In order to rotate the JWT signing key in a backward-compatible way, the user must provide a JWKS that contains the public keys of any previously used signing keys and the new key. This allows clients to verify old JWTs against previous keys and new JWTs against the new key.
+
 ### Feature lifecycle outline
 
 - Feature is opt-in, backward compatible, and does not affect existing x.509 flows
