@@ -110,9 +110,9 @@ tokenProvider := func(ctx context.Context) (string, error) {
 - `--oidc-jwks-uri` (string): Custom URI for external JWKS access
 - `--oidc-path-prefix` (string): Path prefix for all OIDC HTTP endpoints
 - `--oidc-domains` (string slice): Allowed domains for OIDC HTTP endpoint requests
-- `--oidc-tls-cert-file` (string): TLS certificate file for OIDC HTTP server (required if enabled)
-- `--oidc-tls-key-file` (string): TLS key file for OIDC HTTP server (required if enabled)
-- `--oidc-tls-insecure` (bool): Serve OIDC HTTP without TLS
+- `--oidc-server-tls-cert-file` (string): TLS certificate file for OIDC HTTP server (required if enabled)
+- `--oidc-server-tls-key-file` (string): TLS key file for OIDC HTTP server (required if enabled)
+- `--oidc-server-tls-enable` (bool): Serve OIDC HTTP with TLS
 
 ### Feature lifecycle outline
 
