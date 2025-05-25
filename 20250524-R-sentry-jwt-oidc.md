@@ -1,6 +1,6 @@
 # Sentry JWT and OIDC Support for Workload Identity
 
-* Author(s): Joni Collige
+* Author(s): Joni Collinge
 * State: Implemented
 * Updated: 2025-05-24
 
