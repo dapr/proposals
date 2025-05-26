@@ -56,6 +56,17 @@ The proposed fields introduced in this document are:
 - WorkflowInstanceId: This field will provide a unique identifier for the workflow instance. It is already available in the orchestration context but will now be propagated to the activity context.
 
 - ActivityInstanceId: This field will provide a unique identifier for the same activity among retries. This new field will be part of the [Activity Request](https://github.com/dapr/durabletask-protobuf/blob/main/protos/orchestrator_service.proto) and needs to be populated in the runtime.
+```
+message ActivityRequest {
+    string name = 1;
+    google.protobuf.StringValue version = 2;
+    google.protobuf.StringValue input = 3;
+    OrchestrationInstance orchestrationInstance = 4;
+    int32 taskId = 5;
+    TraceContext parentTraceContext = 6;
+    string activityInstanceId = 7;
+}
+```
 
 - RetryAttempt: This field will contain the current retry count for the activity execution.  
 
