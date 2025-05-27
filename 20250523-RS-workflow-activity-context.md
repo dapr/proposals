@@ -6,14 +6,15 @@
 
 ## Overview
 
-This is a proposal to enrich workflow activity context by introducing new fields. This will make it easier for users to control the workflow's state within activities. They are particularly useful for:
+This is a proposal to enrich workflow activity context by introducing new fields. This will make it easier for users to control the retries within activities. They are particularly useful for:
 
 1. **Idempotency**: Ensuring activities are not executed multiple times for the same task
-2. **State Management**: Tracking the state of activity execution
 
 ## Background
 
-Workflow users have raised concerns about controlling and preventing an activity from being invoked more than once or tracking the state of the execution. Input parameters can be used to control the workflow's state, but certain scenarios do not have enough data to do it. Some examples are:
+Workflow users have raised concerns about controlling and preventing an activity from being invoked more than once.
+Input parameters can be used to control the workflow's state, but certain scenarios do not have enough data to do it.
+Some examples are:
 
 - A notification activity where the message content alone isn't enough to determine uniqueness
 - An external service call where idempotency can't be guaranteed by the input parameters
@@ -53,23 +54,15 @@ An attempt to solve this problem has been tried in the JAVA-SDK. However, the so
 
 The proposed fields introduced in this document are:
 
-- WorkflowInstanceId: This field will provide a unique identifier for the workflow instance. It is already available in the orchestration context but will now be propagated to the activity context.
-
-- ActivityInstanceId: This field will provide a unique identifier for the same activity among retries. This new field will be part of the [Activity Request](https://github.com/dapr/durabletask-protobuf/blob/main/protos/orchestrator_service.proto) and needs to be populated in the runtime.
+- TaskExecutionId: This field will provide a unique identifier for the same activity among retries. This new field will be part of the [Activity Request](https://github.com/dapr/durabletask-protobuf/blob/main/protos/orchestrator_service.proto) and needs to be populated in the runtime. 
+The new field will be present in the following entities:
 ```
-message ActivityRequest {
-    string name = 1;
-    google.protobuf.StringValue version = 2;
-    google.protobuf.StringValue input = 3;
-    OrchestrationInstance orchestrationInstance = 4;
-    int32 taskId = 5;
-    TraceContext parentTraceContext = 6;
-    string activityInstanceId = 7;
-}
+  ActivityRequest
+  TaskScheduledEvent
+  TaskCompletedEvent
+  TaskFailedEvent
+  ScheduleTaskAction
 ```
-
-- RetryAttempt: This field will contain the current retry count for the activity execution.  
-
 
 ### Feature lifecycle outline
 
