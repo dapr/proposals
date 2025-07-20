@@ -81,7 +81,7 @@ of breaking existing users.
 
 ### 3. Independently Version HTTP and gRPC APIs
 - Allow the HTTP and gRPC interfaces for each building block to be versioned independently.
-- While we still have a goal of functional parity between teh two, this change acknowledges that certain features may
+- While we still have a goal of functional parity between the two, this change acknowledges that certain features may
 be more naturally suited to one protocol over the other.
 
 #### Why?
