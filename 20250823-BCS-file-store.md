@@ -1,6 +1,6 @@
 ﻿# File storage building block
 - Author(s): @WhitWaldo
-- Significantly inspired by: @ItalyPaleAle (https://github.com/dapr/proposals/pull/18)
+- Significantly inspired by: @ItalyPaleAle (https://github.com/dapr/proposals/pull/18), @artursouza (https://github.com/dapr/dapr/issues/4804)
 - Updated August 23, 2025
 
 ## Overview
