@@ -295,8 +295,17 @@ This is intended as a provider-agnostic, lean building block that provides a sim
 in a streaming fashion that's generally too large for a key/value store.
 
 I leave it to the architects of future even more specialized state store building blocks to decide whether they want to
-support additional features beyond what's provided beyond this narrow implementation. 
+support additional features beyond what's provided beyond this narrow implementation.
 
+### What if we called it `BinaryStore` instead of `FileStore`? (thanks @olitomlinson!)
+Love it. By calling out that it's a file store, I'm simply trying to avoid any confusion that a developer can pass some
+arbitrary in-memory representation and trust that some serialization magic will persist it. By requiring that it be a 
+file, we're ensuring that it's in a state that's persistable elsewhere. Here, I imagine that the SDK API would require 
+that the developer provide an array of bytes or a byte stream of already-serialized/encoded data as it needn't strictly
+be a location on their file system to a file.
+
+To that end then, I'm entirely ok with calling this a `BinaryStore` instead as it gives a similar level of 
+understanding if that makes more sense than `FileStore`.
 
 ## Completion Checklist
 - [ ] File Store Runtime Implementation
