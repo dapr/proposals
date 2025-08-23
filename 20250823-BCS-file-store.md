@@ -279,10 +279,10 @@ alternative to our existing key/value store implementation available for persist
 be quite timely.
 
 ### How might it be immediately used in the SDKs?
-Once we had support for this in the runtime, I'd write a helper tool for Dapr Workflows in the .NET SDK. When activities
-yield any data, this utility would persist it to this file store and return a reference to it that can be returned to the
-calling workflow. Future activity invocations can then retrieve the data identified by that reference from the file
-store. 
+Once we had support for this in the runtime, I'd write a proposed [helper tool](https://github.com/dapr/dotnet-sdk/issues/1533)
+for Dapr Workflows in the .NET SDK. When activities yield any data, this utility would persist it to this file store 
+and return a reference to it that can be returned to the calling workflow. Future activity invocations can then retrieve 
+the data identified by that reference from the file store.
 
 Similarly, such large data could be persisted by other operations and passed into workflows as inputs to be retrieved
 by activities in later operations.
