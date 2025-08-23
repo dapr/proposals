@@ -299,8 +299,8 @@ support additional features beyond what's provided beyond this narrow implementa
 
 
 ## Completion Checklist
-[] File Store Runtime Implementation
-[] Tests added (e2e, unit)
-[] Implement File Store providers
-[] SDK Support
-[] Documentation (supported providers, purpose, set up documentation structure for speciality state stores)
+- [ ] File Store Runtime Implementation
+- [ ] Tests added (e2e, unit)
+- [ ] Implement File Store providers
+- [ ] SDK Support
+- [ ] Documentation (supported providers, purpose, set up documentation structure for speciality state stores)
