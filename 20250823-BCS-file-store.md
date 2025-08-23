@@ -10,7 +10,7 @@ common object store or blob store providers. I think there's every possibility t
 a proper "blob store" or "object store" building block in the future. However, for now I think it's best to keep the
 scope of this proposal focused on files more generally and avoid the complexities of either of those specialty stores.
 Over time, the distinction between this and another Blob Store or Object Store blobk should be made clearer by the
-enhanced capabilities of either of those APIs (e.g. list by prefix or handling metadata), but this proposal should
+enhanced capabilities of either of those APIs (e.g., list by prefix or handling metadata). However, this proposal should
 be understood to be a bare-boned implementation designed to strictly store and retrieve (potentially) large serialized
 files.
 
@@ -59,7 +59,7 @@ concept:
 - When persisting or retrieving state, this should be done using an asynchronous stream to maximize SDK and runtime
 performance while minimizing resource overhead and preventing memory exhaustion
 - While SDKs should allow metadata to be stored alongside the data, if it's not supported by the provider, the 
-documentation should clearly state this lack of support (e.g. that the runtime will not otherwise persist it).
+documentation should clearly state this lack of support (e.g., that the runtime will not otherwise persist it).
 
 ### Make Runtime APIs Simpler
 I'd like to make the runtime APIs as simple as possible so they're more readily used in a composable way alongside other
@@ -72,11 +72,11 @@ This approach allows for a leaner, more provider-agnostic API, takes work off th
 better positions the SDKs to provide a more comprehensive experience leveraging existing building blocks, improving
 and simplifying the developer experience.
 
-> **NOTE** It would be imperative to call out in the developer documentation for this building block that the metadata and listing
-information returned is not actually provided by the state provider and is instead provided based on values provided 
-by the developer and are not necessarily reflective of the actual state of the store. This could provide a key
-distinction between this and an actual object or blob store for those that need that level of detail (with the tradeoff
-that fewer providers would be supported in the other implementation).
+> **NOTE** It would be imperative to call out in the developer documentation for this building block that the metadata 
+> and listing information returned is not provided by the state provider and is instead provided based on values provided 
+> by the developer and are not necessarily reflective of the actual state of the store. This could provide a key
+> distinction between this and an actual object or blob store for those that need that level of detail (with the tradeoff
+> that fewer providers would be supported in the other implementation).
 
 
 #### Example: C# SDK
@@ -161,9 +161,9 @@ following:
 ```proto
 // Existing Dapr service
 service Dapr {
-    rpc SetFileAlpha1(SetFileRequest) returns (SetFileResponse) {}
-    rpc GetFileAlpha1(GetFileRequest) returns (GetFileResponse) {}
-    rpc DeleteFileAlpha1(DeleteFileRequest) returns (DeleteFileResponse) {}
+    rpc SetFileAlpha1(stream SetFileRequest) returns (SetFileResponse) {};
+    rpc GetFileAlpha1(GetFileRequest) returns (stream GetFileResponse);
+    rpc DeleteFileAlpha1(DeleteFileRequest) returns (DeleteFileResponse) {};
 }
 
 message SetFileRequest {
