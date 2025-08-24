@@ -1,11 +1,12 @@
-﻿# File storage building block
+﻿# Binary storage building block
 - Author(s): @WhitWaldo
 - Significantly inspired by: @ItalyPaleAle (https://github.com/dapr/proposals/pull/18), @artursouza (https://github.com/dapr/dapr/issues/4804)
+- Name inspired by @olitomlinson
 - Updated August 23, 2025
 
 ## Overview
 This is a design proposal for building a new [specialized state store](https://github.com/dapr/dapr/issues/7339) for 
-managing named files in state providers. I intentionally use the work file as opposed to blob or object as to avoid 
+managing named files in state providers. I intentionally use the word "file" as opposed to blob or object as to avoid 
 any of the overloaded meaning associated with common object store or blob store providers. I think there's every 
 possibility that it'll make sense to introduce a proper "blob store" or "object store" building block in the future. 
 However, for now I think it's best to keep the scope of this proposal focused on files more generally and avoid the 
@@ -16,13 +17,12 @@ strictly store and retrieve (potentially) large serialized files.
 
 Files are any contiguous sequences of unstructured data comprised of bytes that should be assumed to span lengths as 
 few as a handful of bytes to several gigabytes. Examples include images, videos, documents, database backups, 
-compressed archives and so on.
-
-Finally, while I also considered calling this the even more ambiguous `DataStore`, I want to be clear that this is 
-intended to persist data that's been serialized and not some store for arbitrary in-memory data that's not trivially 
-persisted externally. It should be called out in the documentation that this is not intended to be a replacement for 
-something like SMB or NFS and is just a general-purpose storage implementation that doesn't get into the Object/Blob 
-details.
+compressed archives and so on. This original version of this proposal referred to this being a "file store", but after
+talking about it with Oli, I've warmed up to instead calling it the "binary store". This is better than even `DataStore`
+because the intent is that the data will already have been serialized and encoded so it's ready to persist somewhere. 
+While this might be from a file, it doesn't necessarily have to be, so much as that it's just an array (or while in 
+transit, a stream) of bytes. Referring to it as a `BinaryStore` also rules out any confusion about whether it's 
+abstracting SMB or NFS.
 
 ## Background
 Dapr currently implements a state store around a strictly key/value basis. This approach has led to component support
@@ -33,7 +33,7 @@ special-purpose state management building blocks instead of having a one-size-fi
 For example, files differ from values in key/value stores in that they can frequently span large amounts of data that
 isn't generally compatible with the likes of Redis or Etcd. Because they span such large amounts of data, it's frequently
 insufficient to simply store and retrieve them synchronously, mandating a stream-first approach to minimize
-resources needed by the runtime to transfer the data. The goal is to allow users to store and retrieve files in a 
+resources needed by the runtime to transfer the data. The goal is to allow users to store and retrieve binary blobs in a 
 performant and scalable manner via a common runtime API and enable the Dapr SDKs to complement the implementation to
 support additional provider-specific features on a case by case basis. A possible example of this will be given below.
 
@@ -44,9 +44,9 @@ This component is expected to have similar attributes to existing state stores w
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: filestore
+  name: binarystore
 spec:
-  type: state.filestore.<providerName>
+  type: state.binarystore.<providerName>
   version: v1.0 # Following the API versioning convention proposed in https://github.com/dapr/proposals/pull/87
   metadata:
     # Various properties necessary for component registration
@@ -58,8 +58,6 @@ concept:
 - All operations should be asynchronously performed with the sidecar
 - When persisting or retrieving state, this should be done using an asynchronous stream to maximize SDK and runtime
 performance while minimizing resource overhead and preventing memory exhaustion
-- While SDKs should allow metadata to be stored alongside the data, if it's not supported by the provider, the 
-documentation should clearly state this lack of support (e.g., that the runtime will not otherwise persist it).
 
 ### Make Runtime APIs Simpler
 I'd like to make the runtime APIs as simple as possible so they're more readily used in a composable way alongside other
@@ -72,22 +70,22 @@ This approach allows for a leaner, more provider-agnostic API, takes work off th
 better positions the SDKs to provide a more comprehensive experience leveraging existing building blocks, improving
 and simplifying the developer experience.
 
-> **NOTE** It would be imperative to call out in the developer documentation for this building block that the metadata 
-> and listing information returned is not provided by the state provider and is instead provided based on values provided 
-> by the developer and are not necessarily reflective of the actual state of the store. This could provide a key
-> distinction between this and an actual object or blob store for those that need that level of detail (with the tradeoff
-> that fewer providers would be supported in the other implementation).
+> **NOTE** It would be important to call out in the developer documentation for this building block that the metadata 
+> and listing information returned is not provided by the state provider. Rather, it is instead provided based on 
+> values provided by the developer and are not necessarily reflective of the actual state of the store. This could 
+> provide a key distinction between this and an actual object or blob store for those that need that level of detail 
+> (with the tradeoff that fewer providers would be supported in the other implementation).
 
 
 #### Example: C# SDK
-For example, in the C# SDK, the developer might specify a key/value store of their choosing to persist file metadata
+For example, in the C# SDK, the developer might specify a key/value store of their choosing to persist metadata
 during the dependency injection registration alongside the name of the file store component:
 
 ```csharp
 services.AddDapr()
     .WithFileStore(opt => 
     {
-        opt.FileStoreName = "my-file-store"; // Defines the file store to use for this injected `DaprFileStore` type
+        opt.BinaryStoreName = "my-file-store"; // Defines the binary store to use for this injected `DaprBinaryStore` type
         opt.MetadataStoreName = "my-metadata-store"; // Defines the metadata store to persist metadata to
     });
 ```
@@ -96,16 +94,19 @@ This would provide a simple approach that allows the developer to use the SDK to
 metadata with a DI-registered type. This would avoid the current approach of having to pass in the store names each time.
 
 ```csharp
-public sealed class MyClass(DaprFileStore fileStore)
+public sealed class MyClass(DaprBinaryStore binaryStore)
 {
-    public async Task SaveDataAsync(string name, byte[] data) 
+    public async Task SaveAsync(string name, byte[] data) 
     {
-        await fileStore.SetAsync(name, data);
+        await binaryStore.SetAsync(name, data);
     }
     
-    public async Task SaveDataWithMetadataAsync(string name, byte[] data, IReadOnlyDictionary<string, string> metadata )
+    public async Task SaveWithMetadataAsync(string name, byte[] data, IReadOnlyDictionary<string, string> metadata )
     {
-        await fileStore.SetAsync(name, data, metadata);
+        if (string.IsNullOrWhitespace(binaryStore.MetadataStoreName)) 
+            throw new ArgumentException("Metadata store name must be set in the DaprFileStoreOptions during DI registration");
+        
+        await binaryStore.SetAsync(name, data, metadata);
     }
 }
 ```
@@ -116,20 +117,20 @@ manage the type lifecycle:
 
 ```csharp
 services.AddDapr()
-    .WithFileStore("fileStoreA", (serviceProvider, options) => 
+    .WithBinaryStore("storeA", (serviceProvider, options) => 
     {
         // Populate the file store and metadata store names from a configuration
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-        var fileStoreName = configuration.GetValue<string>("FileStoreName");
+        var binaryStoreName = configuration.GetValue<string>("BinaryStoreName");
         var metadataStoreName = configuration.GetValue<string>("MetadataStoreName");
         
         options.FileStoreName = fileStoreName;
         options.MetadataStoreName = metadataStoreName;        
     })
-    .WithFileStore("fileStoreB", options => 
+    .WithBinaryStore("storeB", options => 
     {
         // Use static values to populate the names in this named `DaprFileStore` client
-        options.FileStoreName = "my-file-store";
+        options.BinaryStoreName = "my-binary-store";
         options.MetadataStoreName = "my-metadata-store";
     });
 ```
@@ -140,10 +141,10 @@ the developer might query the list of files in the store by instead querying the
 keys with the file name prefix they're interested in:
 
 ```csharp
-public sealed class MyClass(DaprFileStore fileStore)
+public sealed class MyClass(DaprBinaryStore binaryStore)
 {
     public async Task<IReadOnlyCollection<string>> GetFileNamesAsync(string prefix)
-        => await fileStore.ListFilesAsync(prefix);
+        => await binaryStore.ListFilesAsync(prefix);
 }
 ```
 
@@ -161,98 +162,99 @@ following:
 ```proto
 // Existing Dapr service
 service Dapr {
-    rpc SetFileAlpha1(stream SetFileRequest) returns (SetFileResponse) {};
-    rpc GetFileAlpha1(GetFileRequest) returns (stream GetFileResponse);
-    rpc DeleteFileAlpha1(DeleteFileRequest) returns (DeleteFileResponse) {};
+    rpc SetBinaryFileAlpha1(stream SetBinaryFileRequest) returns (SetBinaryFileResponse) {};
+    rpc GetBinaryFileAlpha1(GetBinarFileRequest) returns (stream GetBinaryFileResponse);
+    rpc DeleteBinaryFileAlpha1(DeleteBinaryFileRequest) returns (DeleteBinaryFileResponse) {};
 }
 
-message SetFileRequest {
+message SetBinaryFileRequest {
     // Request details. Must be present in the first message only.
-    SetFileRequestOptions options = 1;
+    SetBinaryRequestOptions options = 1;
     // Chunk of data of arbitrary size
     common.v1.StreamPayload payload = 2;
 }
 
-message SetFileRequestOptions {
+message SetBinaryFileRequestOptions {
     string component_name = 1 [json_name="componentName"];
     string file_name = 2 [json_name="fileName"];
     bool overwrite = 3 [json_name="overwrite"];
 }
 
-message SetFileResponse {}
+// The response for SetBinaryFileAlpha1
+message SetBinaryFileResponse {}
 
-message GetFileRequest {
+message GetBinaryFileRequest {
     string component_name = 1 [json_name="componentName"];
     string file_name = 2 [json_name="fileName"];
 }
 
-// The response for GetFileRequest
-message GetFileResponse {
+// The response for GetBinaryFileAlpha1
+message GetBinaryFileResponse {
     // Chunk of data
     common.v1.StreamPayload payload = 1;
 }
 
-message DeleteFileRequest {
+message DeleteBinaryFileRequest {
     string component_name = 1 [json_name="componentName"];
     string file_name = 2 [json_name="fileName"];
 }
 
-message DeleteFileResponse {}
+// The response for DeleteBinaryFileAlpha1
+message DeleteBinaryFileResponse {}
 ```
 
 ### HTTP APIs
 
-#### Persist the file data whether it already exists or not
+#### Persist the binary data whether it already exists or not
 ##### Request
-PUT `http://localhost:{daprPort}/v1.0-alpha1/state/filestore/{componentName}/{fileName}`
+PUT `http://localhost:{daprPort}/v1.0-alpha1/state/binarystore/{componentName}/{fileName}`
 
 The request body should contain an array of (nominally UTF-8 encoded) bytes.
 
 ##### Response
-| Code | Description |
-| ---- | ---- |
-| 200 | File data successfully persisted |
-| 400 | File store provider not found |
+| Code | Description                                                                 |
+| ---- |-----------------------------------------------------------------------------|
+| 200 | Binary data successfully persisted                                          |
+| 400 | Binary store provider not found                                             |
 | 500 | Request formatted correctly, but error in Dapr code or underlying component | 
 
 
-#### Persist the file data only if it doesn't already exist with the given name
+#### Persist the binary data only if it doesn't already exist with the given name
 ##### Request
-POST `http://localhost:{daprPort}/v1.0-alpha1/state/filestore/{componentName}/{fileName}`
+POST `http://localhost:{daprPort}/v1.0-alpha1/state/binarystore/{componentName}/{fileName}`
 
 The request body should contain an array of (nominally UTF-8 encoded) bytes.
 
 ##### Response
-| Code | Description |
-| ---- | ---- |
-| 200 | File data successfully persisted |
-| 400 | File store provider not found |
-| 409 | File already exists |
+| Code | Description                                                                 |
+| ---- |-----------------------------------------------------------------------------|
+| 200 | Binary data successfully persisted                                          |
+| 400 | Binary store provider not found                                             |
+| 409 | File already exists                                                         |
 | 500 | Request formatted correctly, but error in Dapr code or underlying component |
 
 
-#### Retrieve the file data
+#### Retrieve the binary data
 ##### Request
-GET `http://localhost:{daprPort}/v1.0-alpha1/state/filestore/{componentName}/{fileName}`
+GET `http://localhost:{daprPort}/v1.0-alpha1/state/binarystore/{componentName}/{fileName}`
 
 ##### Response
-The response to a decryption request will have its content type header set to `application/octet-stream` as it
-returns an array of bytes representing the file data.
+The response to a retrieval request will have its content type header set to `application/octet-stream` as it
+returns an array of bytes representing the binary file data.
 
-| Code | Description |
-| ---- | ---- |
-| 200 | File data successfully retrieved |
-| 400 | File store provider not found |
-| 404 | File not found |
+| Code | Description                                                                 |
+| ---- |-----------------------------------------------------------------------------|
+| 200 | Binary data successfully retrieved                                          |
+| 400 | Binary store provider not found                                             |
+| 404 | File not found                                                              |
 | 500 | Request formatted correctly, but error in Dapr code or underlying component |
 
 
-#### Delete the file
+#### Delete the binary file
 ##### Request
-DELETE `http://localhost:{daprPort}/v1.0-alpha1/state/filestore/{componentName}/{fileName}`
+DELETE `http://localhost:{daprPort}/v1.0-alpha1/state/binarystore/{componentName}/{fileName}`
 
 ##### Response
-If the file does not exist, returns:
 | Code | Description |
 | ---- | ---- |
 | 204 | Indicates the delete operation completed successfully |
@@ -264,10 +266,10 @@ If the file does not exist, returns:
 This section exists to address some of the concerns shared in previous iterations of this proposal:
 
 ### Why now?
-This is a new building block intended to be used in conjunction with the existing state store building blocks.
+This is a new building block intended to be used in conjunction with the existing state store building block.
 It's not intended to replace them, but rather to complement them. The existing state management building block is
 suitable only storing small amounts of data. Persisting large amounts of data puts large amounts of data in providers 
-not intended for this purposes and can lead to performance and resource usage issues on both the sidecar and client.
+not intended for this purpose and can lead to performance and resource usage issues on both the sidecar and client.
 
 By providing a new building block, we can provide a longer-term solution for storing large amounts of data while 
 still allowing the developer to leverage the existing state store building blocks for managing small amounts of
@@ -287,25 +289,15 @@ the data identified by that reference from the file store.
 Similarly, such large data could be persisted by other operations and passed into workflows as inputs to be retrieved
 by activities in later operations.
 
-This would improve workflow performance by keeping large data out of the event source log in both the inputs and outputs
-of the workflows and their activities.
+This will improve workflow performance by keeping large data out of the event source log in both the 
+inputs and outputs of the workflows and their activities.
 
 ### Why doesn't it support [awesome-feature-X]?
-This is intended as a provider-agnostic, lean building block that provides a simple mechanism to store data
+This is intended as a provider-agnostic, lean building block that provides a simple mechanism to store binary data
 in a streaming fashion that's generally too large for a key/value store.
 
 I leave it to the architects of future even more specialized state store building blocks to decide whether they want to
 support additional features beyond what's provided beyond this narrow implementation.
-
-### What if we called it `BinaryStore` instead of `FileStore`? (thanks @olitomlinson!)
-Love it. By calling out that it's a file store, I'm simply trying to avoid any confusion that a developer can pass some
-arbitrary in-memory representation and trust that some serialization magic will persist it. By requiring that it be a 
-file, we're ensuring that it's in a state that's persistable elsewhere. Here, I imagine that the SDK API would require 
-that the developer provide an array of bytes or a byte stream of already-serialized/encoded data as it needn't strictly
-be a location on their file system to a file.
-
-To that end then, I'm entirely ok with calling this a `BinaryStore` instead as it gives a similar level of 
-understanding if that makes more sense than `FileStore`.
 
 ## Completion Checklist
 - [ ] File Store Runtime Implementation
