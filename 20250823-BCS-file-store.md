@@ -4,15 +4,15 @@
 - Updated August 23, 2025
 
 ## Overview
-This is a design proposal for building a new specialized state store for managing named files in state providers. I
-intentionally use the work file as opposed to blob or object as to avoid any of the overloaded meaning associated with
-common object store or blob store providers. I think there's every possibility that it'll make sense to introduce
-a proper "blob store" or "object store" building block in the future. However, for now I think it's best to keep the
-scope of this proposal focused on files more generally and avoid the complexities of either of those specialty stores.
-Over time, the distinction between this and another Blob Store or Object Store blobk should be made clearer by the
-enhanced capabilities of either of those APIs (e.g., list by prefix or handling metadata). However, this proposal should
-be understood to be a bare-boned implementation designed to strictly store and retrieve (potentially) large serialized
-files.
+This is a design proposal for building a new [specialized state store](https://github.com/dapr/dapr/issues/7339) for 
+managing named files in state providers. I intentionally use the work file as opposed to blob or object as to avoid 
+any of the overloaded meaning associated with common object store or blob store providers. I think there's every 
+possibility that it'll make sense to introduce a proper "blob store" or "object store" building block in the future. 
+However, for now I think it's best to keep the scope of this proposal focused on files more generally and avoid the 
+complexities of either of those specialty stores. Over time, the distinction between this and another Blob Store or 
+Object Store block should be made clearer by the enhanced capabilities of either of those APIs (e.g., list by prefix 
+or handling metadata). However, this proposal should be understood to be a bare-boned implementation designed to 
+strictly store and retrieve (potentially) large serialized files.
 
 Files are any contiguous sequences of unstructured data comprised of bytes that should be assumed to span lengths as 
 few as a handful of bytes to several gigabytes. Examples include images, videos, documents, database backups, 
