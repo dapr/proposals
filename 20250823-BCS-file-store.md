@@ -17,8 +17,8 @@ strictly store and retrieve (potentially) large serialized files.
 
 Files are any contiguous sequences of unstructured data comprised of bytes that should be assumed to span lengths as 
 few as a handful of bytes to several gigabytes. Examples include images, videos, documents, database backups, 
-compressed archives and so on. This original version of this proposal referred to this being a "file store", but after
-talking about it with Oli, I've warmed up to instead calling it the "binary store". This is better than even `DataStore`
+compressed archives and so on. This original version of this proposal referred to this being a `FileStore`, but after
+talking about it with Oli, I've warmed up to instead calling it the `BinaryStore`. This is better than even `DataStore`
 because the intent is that the data will already have been serialized and encoded so it's ready to persist somewhere. 
 While this might be from a file, it doesn't necessarily have to be, so much as that it's just an array (or while in 
 transit, a stream) of bytes. Referring to it as a `BinaryStore` also rules out any confusion about whether it's 
