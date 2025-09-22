@@ -118,7 +118,7 @@ options, versioning is enabled on that app:
 - `MapMultiAppTypes`: This is primarily imagined to align with the 
 [Multi-App Run proposal](https://github.com/dapr/proposals/pull/76) in that it would accept a `List<MultiAppWorkflowMap>` 
 defined by (in .NET at least) `public sealed record MultiAppWorkflowMap(string WorkflowType, string AppId);` in which the 
-`WorkflowTypeWithoutVersion`: reflects the name of the class implementing the workflow (optionally absent its version 
+`WorkflowTypeWithoutVersion` reflects the name of the class implementing the workflow (optionally absent its version 
 number) and the `AppId` contains the identifier of the application containing the type. In line with that proposal,
 when the request comes into the SDK associated with that application, if it supports versioning, it is responsible
 for referring to its own mapping registration to understand which type, specifically, to direct the request to.
