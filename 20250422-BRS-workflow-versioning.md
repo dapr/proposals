@@ -149,9 +149,25 @@ var builder = Host.CreateDefaultBuilder(args).ConfigureServices(services => {
 ```
 
 ## What needs to change?
-### Protos
-This requires more research into how the SDK interacts with the runtime, but I expect the necessary changes are minimal
-given that the majority of what's happening in this proposal happens within each of the SDKs.
+### Runtime/Protos
+Only thing required by the runtime is adding the workflow type (with version) to the workflow state metadata and to
+inbound calls to the workflow SDK (to understand if versioning is to be overridden by the specified name or not).
+
+It's proposed that this is a different field than `name` so `name` continues to reflect the base type name absent
+version information.
+
+If a workflow is running and the application crashes, the runtime will need to re-run the workflow using the same 
+instance ID, input and will need to specify this type (including version) to override any versioning on the SDK. 
+Otherwise, if the workflow type were to suddenly swap out here, the re-run would not be deterministic and (should/would)
+fail. 
+
+If the workflow is ever started via `ContinueAsNew` or `ScheduleWorkflowAsync`, this workflow type with the version
+should be forgotten as routing should be (briefly) left to the SDK once again.
+
+### Durable Task SDKs (per-language))
+The runtime needn't know anything about whether versioning has been enabled on a given app as it simply needs to know 
+the name of the workflow type to invoke. Everything downstream of the runtime calling the SDK to invoke this workflow 
+is an implementation detail of the SDK and it will be responsible for routing the request to the appropriate type.
 
 Tracing through how `ContinueAsNew` works in the .NET SDK, it relies on the `TaskOrchestrationContext` implemented
 in the `DurableTask.Core` library. This kicks off a new workflow using the same instance ID and input without any of 
@@ -159,15 +175,27 @@ the corresponding artifacts (in-process tasks, events, etc.). This is primarily 
 clients themselves and not in the runtime as those clients will eventually just call `StartWorkflowAlpha1`.
 
 To that end, `StartWorkflowRequest` allows for a map of `<string, string>` options (under the `options` property) that 
-were originally intended to configure the workflow component. I propose repurposing that here to pass the payload of the 
-`DaprVersioningOptions` as key/value pairs back to the runtime to provide it context whenever `ContinueAsNew` is used 
-(as this isn't implemented at the runtime, but at the SDK level). This doesn't require a protos change and only 
-necessitates a change to each language SDK.
+were originally intended to configure the workflow component and this should be repurposed to receive the target 
+version information, to accommodate type routing in the Durable Task implementation.
 
-Finally, the only other change to a proto necessary here might be the one proposed in the
-[Multi-App Workflow]() to specify the application ID the type should be
-discovered within. This can be specified in the `LimitTypesToApplicationId` property I include in the
-`DaprVersioningOptions` example above and included in that mapping back to the workflow `options` property.
+### Multi-App Support
+A call made to invoke a Workflow type on a given `AppId` is made to the runtime and when that request is received by the
+app SDK, it will handle versioning precisely as it was configured to do at the app startup in a way entirely invisible
+to the caller. This is because none of the versioning information is made available to the runtime as it exists only 
+in the SDK implementation. 
+
+As such, this proposal is fully compatible with the Multi-App Run proposal and continues to require no runtime changes.
+
+### Re-run Support
+The runtime will call back into a workflow to re-run it.
+
+The SDK would either know that this is a re-run and not a fresh instantiation, nor would the SDK know which specific
+version of the workflow type previously ran.
+
+As such, when a request is received to re-run a particular workflow, the SDK should apply the same versioning 
+configuration it would apply to any other fresh workflow invocation request (e.g., `ScheduleNewWorkflow` or 
+`ContinueAsNew`). It should then run the re-run operation against the latest version of the workflow type, per the 
+configured versioning strategy.
 
 ### SDKs
 A change is necessary to the upstream durable task client and worker and how it routes inbound workflow invocations.
@@ -178,21 +206,15 @@ The following decision chart illustrates how this might change (assuming the re-
 Of course, the flowchart could be modified to support multiple versioning strategies and on a per-type basis, but I have
 left those possibilities off the image for brevity.
 
-### Runtime
-Really the only thing required by the runtime is adding the workflow type to the workflow state metadata for
-re-run purposes and changing it to reflect whenever the workflow actor is invoked again. Otherwise, apart from passing
-it along into the app's SDK to start a workflow (along with whatever context is provided along with the re-run 
-invocation). But I think that's it from the runtime perspective.
-
 ### Documentation
-The documentation needs an update to provide as many low-level details about versioning as possible. Here, that should
-specifically detail the convention previously articulated, how each of the SDKs accommodate this and how this is 
+The SDK documentation needs an update to provide as many low-level details about versioning as possible. Here, that should
+specifically detail the convention(s) previously articulated, how each of the SDKs accommodate this and how this is 
 implicated across the various other emergent features of Dapr Workflows.
 
 ## Benefits
 The implementation here is simple and sets up a starting point for a more elaborate versioning approach using patching
 and/or feature flags. I believe it also enables Josh's proposal for workflow re-runs atop this routed solution
-to solve the underlying workflow type mismatch inherent to his proposal. Finally, it also provides a solution
+to solve the underlying workflow type mismatch possibility inherent to his proposal. Finally, it also provides a solution
 to a frequently raised issue by the community in a straightforward and simple way (from the developers' perspective).
 
 It maintains the deterministic nature of the workflows themselves and doesn't introduce any elaborate routing rules or 
