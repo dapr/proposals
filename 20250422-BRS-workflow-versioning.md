@@ -97,31 +97,29 @@ the existing "blue" types are known to have stopped running and have redeployed 
 type from their next deployment altogether. However, in this very likely scenario, the developer never has an opportunity
 to swap out Workflow types.
 
-Now, had the developer thought ahead about this in 1.15, they could have introduced an activity that performed some sort 
-of reflective analysis of its own service or used some sort of Workflow registry to determine that there was a newer type
-available to swap to, then scheduled a one-time Dapr Job with the updated Workflow type name as the payload and ended 
-the current workflow in order to have the job invoke the new Workflow type, but this introduces quite a lot of complexity.
-As we're trying to simplify distributed application development with Dapr, I propose that there's a simpler approach
-available to us here that introduces a powerful mechanism to swap between Workflow types with minimal changes by 
-developers to their existing workflows.
+Now, had the developer thought ahead about this in a previous version, they had options to implement this themselves.
+They could have:
+- Introduced an activity that performed some reflective analysis of its own service, or
+- Used some sort of Workflow registry to determine that there was a newer type available to swap to.
+
+It could then have scheduled a one-time Dapr Job with the updated Workflow type name as the payload 
+and ended the current workflow to have the job invoke the new Workflow type. However, this introduces quite a lot of 
+complexity. Since we're trying to simplify distributed application development with Dapr, I propose that there's a 
+simpler approach available here that introduces a powerful mechanism to swap between Workflow types with minimal changes 
+by developers to their existing workflows.
 
 ## Implementation Details
-I propose that we make relatively small changes to Dapr Workflows APIs externally.
+I propose that we make relatively small changes to Dapr Workflows APIs externally in the SDKs and their Durable Task
+upstream SDKs.
 
 First, we introduce and document a new convention where workflow types are versioned by appending a numerical value to 
 the end of their names. Higher numerical values represent later versions (e.g. `ExampleWorkflow100` represents a later 
-version of the `ExampleWorkflow10` type).
+version of the `ExampleWorkflow10` type). Other strategies might be accommodated by the SDKs themselves, but this is the
+approach I'll use throughout the rest of this document.
 
 Second, I propose that the SDKs reflect an optional `DaprVersioningOptions` configuration value during registration. 
 These options provide the following properties (to start with). If the option is configured (regardless of the following
 options, versioning is enabled on that app:
-- `MapMultiAppTypes`: This is primarily imagined to align with the 
-[Multi-App Run proposal](https://github.com/dapr/proposals/pull/76) in that it would accept a `List<MultiAppWorkflowMap>` 
-defined by (in .NET at least) `public sealed record MultiAppWorkflowMap(string WorkflowType, string AppId);` in which the 
-`WorkflowTypeWithoutVersion` reflects the name of the class implementing the workflow (optionally absent its version 
-number) and the `AppId` contains the identifier of the application containing the type. In line with that proposal,
-when the request comes into the SDK associated with that application, if it supports versioning, it is responsible
-for referring to its own mapping registration to understand which type, specifically, to direct the request to.
 - `ExcludeTypes`: A `IReadOnlyList<string>` containing the names of workflow types (optionally absent its version number)
 that should be excluded from version routing and which should always invoke precisely the named type indicated.
 
@@ -132,23 +130,6 @@ place. This means that there are only two places in which this should happen tod
 `preserveUnprocessedEvents` is set to `false`) as either one will clear the state and all pending events (including 
 external events) ensuring we don't end up with a workflow that does not match its preserved event history.
 2) When the runtime calls into the SDK to invoke a re-run of a workflow against a specific named workflow type.
-
-### Re-run Support
-Additionally, the workflow context should be updated with a settable string property that reflects the latest type 
-including version) used to run the workflow. While this wouldn't be necessary to facilitate this idea itself, it is 
-necessary to support the re-run workflow proposal and its capabilities. Reason being, the concern about versioning with
-ad-hoc mid-workflow runs is that the underlying logic might change and the runtime has no knowledge about the specific
-type being executed (as that's entirely managed in the SDK). By naming the type in the workflow, it means we don't have 
-to make any changes to the placement table or runtime routing logic. 
-
-Rather, thinking through how a replay would work, the developer would pick a mid-workflow activity to re-run from 
-within a workflow ID. The re-run API would facilitate cloning the event log and actor metadata (including this workflow 
-type) for that workflow into a separate workflow ID on he new actor. When the actor calls back into the workflow SDK to 
-run the work from the specified activity within that new workflow ID, it should also specify this type value so the SDK
-can route to that specific type (as though it were excluded per the configuration options above) so there is no 
-versioning impact to the re-run workflow itself and it always runs against a consistent type.
-
-![Workflow Re-run Clone](./resources/20250422-BRS-workflow-versioning/RerunClone.jpg)
 
 ### SDK Example
 Here's an example of what this might look like during the registration process in C#:
@@ -194,6 +175,8 @@ The following decision chart illustrates how this might change (assuming the re-
 
 ![Workflow invocation flowchart](./resources/20250422-BRS-workflow-versioning/VersioningFlowchart.jpg)
 
+Of course, the flowchart could be modified to support multiple versioning strategies and on a per-type basis, but I have
+left those possibilities off the image for brevity.
 
 ### Runtime
 Really the only thing required by the runtime is adding the workflow type to the workflow state metadata for
@@ -214,13 +197,7 @@ to a frequently raised issue by the community in a straightforward and simple wa
 
 It maintains the deterministic nature of the workflows themselves and doesn't introduce any elaborate routing rules or 
 other complexity that might lead to this idea being underutilized in practice. Most of all, it doesn't change anything
-about the fundamental nature of how the workflows themselves execute as a whole and leaves us the broadest door possible
-to effectuating a point-in-time re-execution approach that builds atop this behavior and yields a consistent workflow
-state while benefiting from the registry of available types already registered via the Workflow SDKs.
-
-## Additional Considerations
-- The Multi-App run proposal envisions being able to invoke workflows and activities across applications. It should be
-mentioned in relevant documentation that if any of the cross-referenced applications has enabled versioning, this may 
-interfere with expectations about what the workflow itself actually does (much like swapping out what activities do and
-their various side effects), but the functionality is worth having in Dapr. This option should be made available to 
-developers and the ramifications of using simply made clear.
+about the fundamental nature of how the workflows themselves execute as a whole. It instead leaves us the broadest door 
+possible to effectuating a point-in-time re-execution approach that builds atop this behavior. Finally, it yields a 
+consistent workflow state while benefiting from the registry of available types already registered via the Workflow 
+SDKs.
