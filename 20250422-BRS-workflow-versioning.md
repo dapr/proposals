@@ -160,6 +160,9 @@ var builder = Host.CreateDefaultBuilder(args).ConfigureServices(services => {
     
         options.RegisterWorkflow<MyWorkflow1>();
         options.RegisterWorkflow<MyWorkflow2>(); //This is the newer of the registered workflows
+        
+        // Allows per-type version registration (with different strategies) even if `WithVersioning` isn't specified
+        options.RegisterVersionedWorkflow<MyWorkflow>(new VersionedNumericalSuffixOptions()); 
     });
 });
 ```
