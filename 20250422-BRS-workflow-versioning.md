@@ -77,7 +77,7 @@ internal sealed SampleWorkflow : Workflow<string, object?>
         }
         
         await context.CreateTimer(TimeSpan.FromMinutes(15));
-        context.ContinueAsNext(id, false);
+        context.ContinueAsNew(id, false);
         
         return null;
     }
