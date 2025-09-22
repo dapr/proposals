@@ -116,7 +116,7 @@ Second, I propose that the SDKs reflect an optional `DaprVersioningOptions` conf
 These options provide the following properties (to start with). If the option is configured (regardless of the following
 options, versioning is enabled on that app:
 - `MapMultiAppTypes`: This is primarily imagined to align with the 
-Multi-App Run proposal](https://github.com/dapr/proposals/pull/76) in that it would accept a `List<MultiAppWorkflowMap>` 
+[Multi-App Run proposal](https://github.com/dapr/proposals/pull/76) in that it would accept a `List<MultiAppWorkflowMap>` 
 defined by (in .NET at least) `public sealed record MultiAppWorkflowMap(string WorkflowType, string AppId);` in which the 
 `WorkflowTypeWithoutVersion`: reflects the name of the class implementing the workflow (optionally absent its version 
 number) and the `AppId` contains the identifier of the application containing the type. In line with that proposal,
