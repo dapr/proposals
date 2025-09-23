@@ -12,7 +12,7 @@ calls for three phases in a 13-week (3-month) period:
 - Stabilization & release (~2 weeks)
 
 Today, the prototypes for any given feature are released only at the end of the feature implementation cycle. If the goal
-is to then release the new version of Dapr after a 2-week stabilization period, the runtime team then has two weeks to::
+is to then release the new version of Dapr after a 2-week stabilization period, the runtime team then has two weeks to:
 - Write the runtime documentation describing the feature
 - Stabilize the functionality and prepare for release.
 
