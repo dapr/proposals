@@ -47,7 +47,7 @@ How will this work, technically? Where applicable, include:
 ### Feature lifecycle outline
 
 * Expectations
-* Compatability guarantees
+* Compatibility guarantees
 * Deprecation / co-existence with existing functionality
 * Feature flags
 
