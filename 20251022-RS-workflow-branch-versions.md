@@ -48,7 +48,7 @@ In rough terms of implementation, we’d need to add this arbitrary dictionary o
 
 The version selection will be determined as soon as the code reaches the `GetBranchVersion` call. So in this example, we could have multiple `OrchestratorStartedEvent` prior the greeting, and when we reach the greeting the corresponding `OrchestratorStartedEvent` will include the `greeting` version number in it.
 
-This approach has some benefits compared to other alternatives considered:
+This approach has some benefits compared to other [alternatives](#alternatives) considered:
 
 - Versioning can affect only specific pieces of the workflow code, meaning minimal code duplication. This is very beneficial for long workflows.
 - If the user needs to version the whole workflow they can still do it by introducing a version check that wraps the whole workflow.
