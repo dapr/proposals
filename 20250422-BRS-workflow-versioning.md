@@ -211,7 +211,67 @@ The SDK documentation needs an update to provide as many low-level details about
 specifically detail the convention(s) previously articulated, how each of the SDKs accommodate this and how this is 
 implicated across the various other emergent features of Dapr Workflows.
 
+## Developer Experience
+Primarily in response to the [counterproposal](https://github.com/dapr/proposals/pull/92), I wanted to add this section 
+to clarify what I intend the developer experience to be like and to respond to some of the criticisms raised there about
+this proposal. Having a different type for each workflow is cited as the primary drawback for my approach and I want
+to share a few key reasons why I disagree.
+
+### Transparent Versioning
+As a guiding principal, I don't think the workflow itself should direct versioning at all. If a newer type of a workflow
+is available in the application, the SDK should source and utilize it without needing developer intervention. There should
+be no opportunity for "magical strings" or the cognitive burden of the developer trying to revisit a workflow a few weeks
+later trying to figure out how their workflow works and thinking through some complex versioning scheme.
+
+My proposal makes this really simple - by default (though this can certainly be a configurable convention), when you 
+want to create a new version of a workflow, create a new type and increment the numerical suffix. During app startup,
+notify the workflow registration that you want to opt into versionining and that's it. How it happens is left as an exercise
+to the interplay between the SDK and the runtime and there is no complex branching logic required.
+
+### Avoid Mandating Subject-matter Expertise
+Our documentation discusses the Dapr Workflow implementation atop the event source log and the consequential importance
+of putting deterministic logc in the workflows and non-deterministic logic in activities because of the replay boundary,
+but the concept doesn't require that developers be subject-matter experts on the implications of it because our API
+largely insulates them from any of the details. My approach continues in this vein - by adopting the philosophy of 
+"when you've deployed a workflow to production, leave that version alone", it's implied that there's something about the
+workflow itself that should not be messed with and the transition to newer versions is magically handled.
+
+Introducing in-file workflow versioning will require that developers suddenly grow dramatically more familiar about the
+deterministic implications of writing these workflows than they need be today. A rich understanding of the implications of
+changing how inputs are passed into activities for the replay capability would be essential to preventing foreseeable
+bugs as developers versioned their workflows. The counterproposal glosses over this by suggesting that the important 
+boundary is only in the invocation of the other activities and child workflows, and that's only part of the picture.
+
+### Simplified Testing
+Testing plays a significant role in the development of modern applications. With my proposal, one can conceivably mock
+the various elements of the workflow SDK and trivially validate the end-to-end behavior for each version of the workflow
+just as they would any other method. 
+
+Writing tests for what will increasingly evolve into multiple sets of switch statements makes testing increasingly 
+complicated and risks subtle bugs arising from untested edge cases.
+
+### Type-Validated Explicitness
+By using distinct types, (and in some languages more than others), we can leverage the compiler to catch common errors
+at build time. We don't have to wait until runtime to discover only after runtime failures that some specified version 
+isn't actually available in the app (potentially introducing migration bugs that require still more accommodating version 
+branches).
+
+### Simplified Observability
+The upcoming workflow tools on the CLI will provide much more transparent insight into what workflows and activities have
+run in any given execution. Using my proposal, the versions can be derived from the value saved in the workflow metadata
+and trivially noted in the execution history. Relying exclusively on runtime logic in the workflows themselves will give 
+no information to the developer about what version of any given workflow was actually running at any given point.
+
 ## Benefits
+In short, I believe my proposal is much simpler for a developer to consume and utilize than what's covered in the
+counterproposal. Opt into versioning during app startup and when you want to create a new version of a workflow, create
+a duplicate of the existing type, name it per the configured convention and author it as you will.
+
+All the routing complexities are fully managed by the SDK and the runtime and the developer needn't be concerned with
+any of the many possible pitfalls that might surround an in-file editing approach. Documentation around the concept
+wouldn't necessitate more than a paragraph and some examples and the idea would trivially slot into the existing
+Dapr Workflow concept.
+
 The implementation here is simple and sets up a starting point for a more elaborate versioning approach using patching
 and/or feature flags. I believe it also enables Josh's proposal for workflow re-runs atop this routed solution
 to solve the underlying workflow type mismatch possibility inherent to his proposal. Finally, it also provides a solution
