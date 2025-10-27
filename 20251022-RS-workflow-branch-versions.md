@@ -157,6 +157,14 @@ TaskCompleted                        4.3ms       RUNNING
 ExecutionCompleted                   1.0ms       COMPLETED
 ```
 
+### Monitoring and observability
+
+The system will expose a trace span every time a branch version is selected during a workflow execution. This span will not have any sub-spans, will be a short-lived span just to indicate a branch version has happened. This will help users to know the flow of the specific workflow execution.
+
+On top of that, the system will expose a new gauge metric that will count the number of in-flight branch versions are being executed, incrementing when a new version is selected and decrementing when the workflow execution completes.
+
+This new metric will help users to know if a specific version is being used in any of the in-flight workflow executions, so they can know if a specific old version is safe to remove.
+
 ### SDK Implementation
 
 The SDKs will have a function to retrieve the branch version that needs to be run. This function will return the version number following the rules specified previously.
