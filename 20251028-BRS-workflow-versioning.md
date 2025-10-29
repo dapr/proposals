@@ -358,4 +358,59 @@ themselves execute thereby limiting the need for developers to re-educate themse
 it leaves us the broadest door possible to faciliate compatibility with existing Dapr Workflow capabilities and to
 accommodate new concepts in the future.
 
-I appreciate your time and consideration.
+As always, I appreciate your time and consideration.
+
+
+## FAQ
+I wanted to centralize some of the back-and-forth experienced in the other proposal threads and propose a response in 
+context of this proposal as all the feedback has been instrumental in crafting this approach.
+
+- Does this have an analogy to the versioning performed in Temporal?
+
+Yes. I would describe the versioning side as a hybrid of Temporal's 
+[Worker Versioning](https://docs.temporal.io/production-deployment/worker-deployments/worker-versioning) and their 
+name-based versioning.
+
+There's a great write-up from a few years ago [here](https://community.temporal.io/t/workflow-versioning-strategies/6911)
+contrasting the various approaches and I want to take a moment to distinguish how this proposal differs from Temporal here.
+
+Adapting some of the bullets from that thread, the type-based versioning in this proposal is:
+- Simple: A new type is a new version and CLI tooling can help with this
+- Robust: Changes are isolated from one another that limits mistakes
+- Flexible: There's no need to contemplate backwards compatibility between workflow types
+
+Further, the patch-based versioning:
+- Simple: There's no versioning to patches - it's a simple ask "is this patched" or not and handled as an `if/else` statement
+- Distinct: Because names are not used outside of that workflow type, there's no chance of inadvertent name collisions,
+especially between multiple teams working on the same thing.
+- Limited: Because patches are designed to implement small changes, they are useful in the limited capacity of applying
+a small change here or there in a workflow. When that gets messy or unwieldy, it creates a clear inflection point at whic
+a workflow type version can be useful to refactor the workflow and clear the slate.
+
+- Are there any other key ways this approach diverges from Temporal's?
+
+Yes, I sort of touched on it above, but the four key downsides to type-name versioning in Temporal are:
+1) One must register new workflow types.
+2) One must update all callers of the workflow to update the running type.
+3) New type versions introduce duplicate code.
+4) Named types doesn't actually provide any version migration.
+
+In this proposal, differing slightly from #82, numbers 1 and 2 are not relevant. The base type is used throughout the 
+proposed C# implementation as routing is automatically handled by the SDK based on the presence of the version string 
+value (if at all).
+
+Further, to make small changes to the workflow, I introduce a simplified version of patching from #92. Regardless,
+the notion of having many types to handle migrations is nothing new to anyone that's worked with SQL migrations before
+and I suggest building tooling to handle it in the same way - take the old types and stash them in an archive directory.
+They're still discoverable by the program, but out of view of the developer's file explorer tree.
+
+And of course, the whole point of this proposal is to provide version migration, so that addresses number 4.
+
+This approach comprehensively addresses all the downsides of named types in Temporal while providing, what I think,
+is a better developer experience across the board.
+
+- Wouldn't I have to use patches if I wanted to keep in-flight workflows running while updating my code definitions?
+
+Nope - this is one of the key changes that separates my proposal in #82 from this one with regards to how the SDK finds 
+the versioned types. Again as covered in the last section, in the proposed C# SDK implementation, one needn't
+register new workflow types nor re-invoke them to get the benefits of mapping.
