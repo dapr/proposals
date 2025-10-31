@@ -166,6 +166,9 @@ capabilities and allow the user to opt-into versioning and select a strategy at 
 that strongly urges developers to pick one strategy and stick with it, though future iterations of this in the SDKs
 could certainly introduce some mechanism to migrate from one strategy to another.
 
+*Specifics about how this can be implemented in different Dapr SDKs is covered in more detail below and is briefly 
+provided here to give a high-level overview of the approach.*
+
 Workflows and activities will be registered with the Dapr Workflow SDK as they are today.
 
 Whenever a request come into the application from the Dapr runtime to run work on a specific workflow following a 
@@ -223,9 +226,6 @@ var builder = Host.CreateDefaultBuilder(args).ConfigureServices(services => {
         // Standard workflow registration (no need to record any versioned types except the base type absent suffix)
         options.RegisterWorkflow<MyWorkflow>();
         
-        // Alternate workflow registration (if the base type isn't available - this allows the name prefix to be defined for the type)
-        options.RegisterVersionedWorkflow(nameof(MyWorkflow2), "MyWorkflow"); 
-        
         // Standard activity registration
         options.RegisterActivity<MyActivity>();
         options.RegisterActivity<MyOtherActivity>();         
@@ -240,20 +240,6 @@ date). Documentation would suggest that the older type be kept in a separate dir
 the deprecated workflow types no longer in active use to avoid polluting the directory. The developer is then free to make
 as many changes as they would like to the new workflow without consideration for backwards compatibility with the former
 version as migration will be performed as a clean transition between successful executions.
-
-
-#### CLI Tooling
-I propose the implementation of CLI tooling to simplify the management of new type versions. For C# developers, I'd propose
-this be similar to EF Core's migration tooling:
-
-```bash
-dotnet dapr workflow version add
-```
-
-There are certainly variations of this that might be used such as specifying the relative archive directory:
-```bash
-dotnet dapr workflow version add --archive-dir "./Workflows/MyWorkflow/Archive/"
-```
 
 ### Patches
 Patches are applied to workflows to apply simple code changes that just don't necessarily need a whole type version
@@ -409,7 +395,11 @@ method that allows the user to enable versioning at all. This might look like th
 builder.Services.AddDaprWorkflow(opt => {
   // This is the new method that opts the user into versioning and declares the convention to use
   opt.WithVersioning(opt => opt.Strategy = DaprWorkflowVersioningStrategy.NumericalSuffix);
+  
+  // New alternate workflow registration (if the base type isn't available - this allows the canonical name to be defined for a given type)
+  options.RegisterVersionedWorkflow(nameof(MyWorkflow2), "MyWorkflow"); 
 
+  // Existing registration functionality
   opt.RegisterWorkflow<MyWorkflow>();
   opt.RegisterActivity<MyActivity>();
   opt.RegisterActivity<MyOtherActivity>();
