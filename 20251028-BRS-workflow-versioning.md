@@ -334,9 +334,7 @@ no recorded behavior to violate non-deterministically), the recommended approach
 update to the workflow type with the fix. The change should **not** be versioned per any of these proposals as it does
 not violate any deterministic guarantees in this case.
 
-## What needs to change?
-
-### Protos Changes
+## Protos Changes
 As described in more detail above regarding expected behavior, a new message type should be added for clarity and 
 two existing messages should be modified to reflect an optional field for this new type:
 
@@ -375,7 +373,7 @@ message OrchestratorResponse {
 }
 ```
 
-### SDK Changes
+## SDK Changes
 I share the following suggestions on how this should be implemented in several of the SDKs while emphasizing that it's 
 up to the maintainers of each SDK to ultimately decide the best approach to take, so how this is actually done may
 differ dramatically. As the maintainer of the .NET SDK and JavaScript SDK, these suggestions represent the best design
@@ -388,11 +386,11 @@ I'm currently of the mind that a versioning convention should be applied at the 
 overridden at the workflow level as desired. Different teams may have strictly different ideas about how to version
 their code and each SDK should accommodate this while having a default fall-back.
 
-#### Proposed .NET Changes
+### Proposed .NET Changes
 The implementation for .NET can be quite straightforward because of the availability of source generators. I tentatively
 propose the following changes across the Dapr .NET repositories and projects.
 
-##### Dapr .NET SDK - `Dapr.Workflows`
+#### Dapr .NET SDK - `Dapr.Workflows`
 The `WorkflowContext` will need to be updated to reflect the `IsPatched` method. This method will accept a string value
 that reflects the name of the patch to evaluate. It will return a boolean value according to the following logic applied
 in order (copied from above):
@@ -406,7 +404,7 @@ The string associated with each request to `IsPatched` that returns true should 
 on the `WorkflowContext` so it might be read and included in the `OrchestratorResponse` message communicated back to
 the Dapr runtime when the orchestration has completed.
 
-##### Dapr .NET SDK - `Dapr.Workflows.Versioning`
+#### Dapr .NET SDK - `Dapr.Workflows.Versioning`
 This functionality will be built into a new `Dapr.Workflows.Versioning` NuGet package because it requires the use
 of a source generator so the code can be generated at compile time instead of using reflection. This ensures that
 developers are explicitly opting into the use of this feature and that the SDK is not doing anything that might
@@ -468,7 +466,7 @@ considered out of scope for this initial release. Rather, it will need to be doc
 strategy is selected, it should remain consistently applied, and in .NET, (time willing), we can enforce this with 
 analyzers.
 
-##### Dapr Durable Task .NET SDK
+#### Dapr Durable Task .NET SDK
 The following details how type versioning will work on the internal SDK router.
 
 The workflow SDK will add a new interface called `IWorkflowRegistry` which will provide the properties expected by a 
@@ -509,7 +507,7 @@ as normal, except when the run concludes, the `OrchestratorResponse` will be mod
 `versionData` value reflecting both the canonical workflow type and the list of patch names for which the workflow
 context evaluated as `true` during execution.
 
-##### Dapr .NET Workflow CLI
+#### Dapr .NET Workflow CLI
 A new CLI tool should be created that can be installed as part of the application following the approach used by 
 Entity Framework Core. This tool would allow the developer to perform administrative operations with the workflows to
 simplify the level of effort needed to properly create new typed versions. This tool would be installed as a global
@@ -519,7 +517,7 @@ project.
 In its initial release, it might be good to support the following commands with examples of calling them, accepted 
 parameters, and expected operational result:
 
-###### `dotnet dapr workflow version add`
+##### `dotnet dapr workflow version add`
 Adds a new typed version to the workflow project for the specified canonical workflow type.
 
 Arguments:
@@ -535,7 +533,7 @@ Options:
 | --output-dir &lt;PATH&gt; | -o    | The directory to use to store archived type versions. Paths are relative to the target project directory. Defaults to "Archive". |
 | --clean                   | -c    | Statically attempt to remove all "old code" patches from the previous version as part of the migration.                          | 
 
-###### `dotnet dapr workflow version list`
+##### `dotnet dapr workflow version list`
 Lists each of the workflow types available in the project as well as the latest version for each.
 
 Options:
@@ -544,7 +542,7 @@ Options:
 |---------|-------|------------------------------------------------------------------------|
 | --all   | -a    | List all versions of each workflow type, including the latest version. |
 
-###### `dotnet dapr workflow version prune`
+##### `dotnet dapr workflow version prune`
 
 *This would not be available with the 1.17 release, but perhaps in a later version after coordinating how this might
 work with the Dapr CLI, perhaps...*
