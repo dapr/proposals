@@ -556,7 +556,78 @@ Options:
 |-------------------------|-------|----------------------------------------------------------------------------------------------|
 | --workflow &lt;NAME&gt; | -w    | The name of the workflow type to prune. If not specified, all workflow types will be pruned. |
 
-### Documentation
+### Proposed NodeJS/TypeScript SDK Changes
+The proposed implementation for our TypeScript implementation is similarly fairly straightforward, if mildly more elaborate
+because of the lack of .NET's source generators. This would similarly require installing a separate package (TBD) that
+hooks into the build pipeline and produces a workflow registry that the Durable Task SDK can reference when handling 
+routing of new workflows, but rely on TypeScript decorators to achieve a similar approach to that of the .NET SDK:
+
+```ts
+@VersionedWorkflow("MyWorkflow")
+class MyWorkflow2 extends Workflow<string, object?> {
+    
+}
+```
+
+#### Dapr JS SDK
+The `WorkflowContext` will need to be updated to reflect the `isPatched` method. This method will accept a string value
+that reflects the name of the patch to evaluate. It will return a boolean value according to the following logic
+applied in order (copied from the high-level implementation above):
+
+A call to `isPatched`:
+- Returns true if the workflow is not presently replaying
+- Returns true if the workflow is replaying and the patch name is present in the version information
+- Returns false if the workflow is replaying and the patch name is not present in the version information
+
+The string associated with the request to `isPatched` that returns true should be recorded in a list available
+ on the `WorkflowContext` so it might be read and included in the `OrchestratorResponse` message communicated back to
+the Dapr runtime when the orchestration has completed.
+
+#### Dapr Durable Task JS SDK
+The following details how type versioning will work on the internal SDK router.
+
+The workflow SDK will add a new class called `WorkflowRegistry` that will resemble the following:
+
+```ts
+class WorkflowRegistry {
+    public registeredWorkflows: Map<string, string[]>;
+    
+    constructor () {
+        this.registeredWorkflows = new Map<string, string[]>();
+    }
+}
+```
+
+This type will be incorporated and used by the Durable Task SDK (to avoid being eliminated by downstream tree shaking).
+Population of the workflows will be performed by the following CLI package that will modify this file dynamically at build
+time to reflect additional registrations as part of the constructor.
+
+
+
+#### Dapr JS SDK - Versioning CLI package
+This tool would serve a dual role in the JS SDK implementation. Not only would it hook into the build pipeline to 
+generate the requisite workflow registry at build time sourcing its data from the class attributes and class names, but
+it would also provide the Entity Framework Core styled CLI package functionality to simplify performing type-level 
+version migrations.
+
+Upon installation, a post-install script should be executed that adds the file containing the `WorkflowRegistry` to the
+`.gitignore` file as it should not be versioned since it'll be machine-generated each build.
+
+As part of the build operation, the CLI package, using the `ts-morph` package will parse and analyze the source code in 
+the project looking for classes annotated with `VesrionedWorkflow` and then add each discovered canonical type and
+workflow type names to the `WorkflowRegsitry` file.
+
+From here, the operation would proceed substantially similarly to the .NET package - when the request comes into
+the workflow orchestration processor, it will determine if it's a replay or not, and route the request to the 
+appropriate workflow type based on the versioning information supplied, if any. As patches are evaluated, the list
+of those that return true will be recorded and reported back with the version information when the orchestration is 
+completed (if not a replay).
+
+Otherwise, the CLI would also seek to reflect the helper operations prescribed in the .NET section above:
+`npx dapr workflow version add`, `npx dapr workflow version list`, and `npx dapr workflow version prune`
+ 
+
+## Documentation Changes
 The SDK and building block documentation would need a few paragraphs and several code examples added to explain and 
 demonstrate the new versioning with as much low-level detail as possible. It's very likely that the actual implementation
 experience will differ by language based on their tools available (e.g., this will be implemented heavily with source 
