@@ -175,43 +175,77 @@ Whenever a request come into the application from the Dapr runtime to run work o
 `ScheduleNewWorkflowAsync` call, during the same following a `ContinueAsNew` call or even following a 
 `CallChildWorkflowAsync`, a request should come into the SDKs to run that named workflow.
 
-### Version isn't specified on orchestration start event
+### Version isn't specified on orchestration request
 If there is no version specified on the event, the SDK should map the request based on the named base type to the
 latest version available in the application and run the workflow there. Every time a patch is evaluated, the "new code" 
 route should be taken, and the patch identifier persisted in a list of encountered patches.
 
 At each boundary invocation except workflow orchestration completion, the SDK should return the workflow status with
-the (potentially updated) version string defined below containing the name of the workflow type executed and the list 
+the (potentially updated) version information defined below containing the name of the workflow type executed and the list 
 of named patches followed.
 
-### Version is specified on orchestration start event
+### Version is specified on orchestration request
 If the version is supplied, the workflow type should be parsed out and the SDK should ignore "latest" evaluations and use
-that type to run the workflow execution. The list of patches should be extracted from the version string. At each
+that type to run the workflow execution. The list of patches should be extracted from the version prototype. At each
 evaluation of the patch, the path should be taken that corresponds to whether the patch exists in the list:
 
 - If the patch exists in the version list, the "new code" route should be taken
 - If the patch does not exist in the version list, the "old code" route should be taken
 
-#### Version string format
-The version string should use double pipe characters to separate the different parts of the value. It should always start
-with the name of the workflow type, followed by a mandatory '||' and then a list of each case-sensitive named patch applied 
-and used in the execution surrounded with square brackets and themselves separated by double pipe characters. The brackets 
-should always be present whether there are any patches named within them or not. An example without any patches might 
-look like:
+#### Version Specification
+The version object needs to reflect the name (not the canonical name) of the workflow that was that actually invoked
+in the previous execution so the SDKs can override the routing and point directly to this type. It also needs to include
+the list of patch identifiers that evaluated as true when this was run so they might replay in the same manner.
 
-```text
-MyWorkflowType4||[]
+I propose that a new prototype be created to reflect this data in a cleanly structured manner:
+
+```protos
+// Reflects the workflow version and patches successfully evaluated for workflow replay purposes
+message TargetWorkflowVersion {
+  // The name of the specific workflow type executed as part of a previous workflow execution
+  string workflowTypeName = 1;
+  // The list of patches that evaluated as true during the execution
+  repeated string patchNames = 2;
+}
 ```
 
-An example with a single patch might instead read like:
-```text
-MyWorkflowType4||[patch-1]
+If this is part of a replay, this proto should be sent by the runtime to the SDK as part of a request to start an 
+orchestration via the `OrchestratorRequest` message, modified as follows:
+
+```protos
+message OrchestratorRequest {
+    string instanceId = 1;
+    google.protobuf.StringValue executionId = 2;
+    repeated HistoryEvent pastEvents = 3;
+    repeated HistoryEvent newEvents = 4;
+    OrchestratorEntityParameters entityParameters = 5;
+    bool requiresHistoryStreaming = 6;
+    optional TaskRouter router = 7;
+    // This should be populated with the version information from a previous `OrchestratorResponse` if this is a replay
+    optional TargetWorkflowVersion version = 8;
+}
 ```
 
-And an example with multiple patches might read like:
-```text
-MyWorkflowTypes4||[patch-1||sample||bugfix2]
+In the response from the SDK to the runtime regarding the orchestration operation, the `OrchestratorResponse` message
+should be modified as follows:
+```protos
+message OrchestratorResponse {
+    string instanceId = 1;
+    repeated OrchestratorAction actions = 2;
+    google.protobuf.StringValue customStatus = 3;
+    string completionToken = 4;
+
+    // The number of work item events that were processed by the orchestrator.
+    // This field is optional. If not set, the service should assume that the orchestrator processed all events.
+    google.protobuf.Int32Value numEventsProcessed = 5;
+    // While marked as optional for backwards compatibility, this should always be populated by versioned workflows
+    optional TargetWorkflowVersion version = 6;
+}
 ```
+
+If the operation was a replay, the `version` field should be populated with the original information provided by the
+`OrchestratorRequest` message. If not, the `version` field should be populated with the name of the actual workflow
+type that executed the operation in the SDK and a list of each patch identifier that evaluated as true during execution.
 
 ## Practical Example
 This proposal diverges in a few refined ways from the proposal at #82. Assuming a C# application, registration
@@ -257,8 +291,8 @@ only to provide an `if/else` statement to the workflow code.
 
 A call to `IsPatched`:
 - Returns `true` if the workflow is not presently replaying
-- Returns `true` if the workflow is replaying and the patch name is present in the version string
-- Returns `false` if the workflow is replaying and the patch name is **not** present in the version string
+- Returns `true` if the workflow is replaying and the patch name is present in the version information
+- Returns `false` if the workflow is replaying and the patch name is **not** present in the version information
 
 Patches themselves are not versioned. They exist within the scope of the versioned workflow type, but they themselves
 do not exist beyond two states.
@@ -292,11 +326,6 @@ internal sealed SampleWorkflow : Workflow<string, object?>
 }
 ```
 
-#### Patch Naming Constraints
-There are a few key constraints that should be applied to patch names:
-- Patch names must not include pipe or square bracket characters
-- Patch names will be evaluated in a case-sensitive manner
-
 ## Caveats
 Determinism is still mandatory. Neither #82, #92 nor this proposal proffer a fix for a scenario in which there's a bug
 in the workflow that's currently wreaking havoc on the system and needs to be fixed. In the sole case that there's an
@@ -308,15 +337,18 @@ not violate any deterministic guarantees in this case.
 ## What needs to change?
 
 ### Protos Changes
-Only two changes are needed from the runtime to support Workflow Versioning:
-1) An optional string value named `version` containing the version string defined above should be added to the workflow
-   history
-2) This string value should be returned as a `version` property on any inbound request to the Workflow SDK, if the version
-   is present in the history. If it is, the last-seen version of the `version` property should be used.
-
-The `OrchestratorRequest` should be modified to add the optional `versionData` property as follows:
+As described in more detail above regarding expected behavior, a new message type should be added for clarity and 
+two existing messages should be modified to reflect an optional field for this new type:
 
 ```protos
+// Reflects the workflow version and patches successfully evaluated for workflow replay purposes
+message TargetWorkflowVersion {
+  // The name of the specific workflow type executed as part of a previous workflow execution
+  string workflowTypeName = 1;
+  // The list of patches that evaluated as true during the execution
+  repeated string patchNames = 2;
+}
+
 message OrchestratorRequest {
     string instanceId = 1;
     google.protobuf.StringValue executionId = 2;
@@ -325,13 +357,10 @@ message OrchestratorRequest {
     OrchestratorEntityParameters entityParameters = 5;
     bool requiresHistoryStreaming = 6;
     optional TaskRouter router = 7;
-    optional string versionData = 8;
+    // This should be populated with the version information from a previous `OrchestratorResponse` if this is a replay
+    optional TargetWorkflowVersion version = 8;
 }
-```
 
-The `OrchestratorResponse` should be modified to add the optional `versionData` property as follows:
-
-```protos
 message OrchestratorResponse {
     string instanceId = 1;
     repeated OrchestratorAction actions = 2;
@@ -341,17 +370,10 @@ message OrchestratorResponse {
     // The number of work item events that were processed by the orchestrator.
     // This field is optional. If not set, the service should assume that the orchestrator processed all events.
     google.protobuf.Int32Value numEventsProcessed = 5;
-    optional string versionData = 6;
+    // While marked as optional for backwards compatibility, this should always be populated by versioned workflows
+    optional TargetWorkflowVersion version = 6;
 }
 ```
-
-
-### Durable Task SDKs (per language)
-The runtime needn't know anything about whether versioning has been enabled on a given app as it simply needs to know
-the name of the workflow type to invoke. Everything downstream of the runtime calling the SDK to invoke this workflow
-is an implementation detail of the SDK. The SDK will be responsible for parsing the version string whether it's present 
-or not and routing to the appropriate workflow type, and making the patch names available for the addition of the 
-`IsPatched` method on the `WorkflowContext`.
 
 ### SDK Changes
 I share the following suggestions on how this should be implemented in several of the SDKs while emphasizing that it's 
@@ -377,8 +399,8 @@ in order (copied from above):
 
 A call to `IsPatched`:
 - Returns `true` if the workflow is not presently replaying
-- Returns `true` if the workflow is replaying and the patch name is present in the version string
-- Returns `false` if the workflow is replaying and the patch name is **not** present in the version string
+- Returns `true` if the workflow is replaying and the patch name is present in the version information
+- Returns `false` if the workflow is replaying and the patch name is **not** present in the version information
 
 The string associated with each request to `IsPatched` that returns true should be recorded in a list available
 on the `WorkflowContext` so it might be read and included in the `OrchestratorResponse` message communicated back to
@@ -502,25 +524,25 @@ Adds a new typed version to the workflow project for the specified canonical wor
 
 Arguments:
 
-| Argument     | Description |
-|--------------| -- |
+| Argument     | Description                                                            |
+|--------------|------------------------------------------------------------------------|
 | &lt;NAME&gt; | The canonical name of the workflow type to add a new typed version to. |
 
 Options:
 
-| Option                                    | Short | Description                                                                                                                      |
-|-------------------------------------------| -- |----------------------------------------------------------------------------------------------------------------------------------|
-| --output-dir &lt;PATH&gt;                 | -o | The directory to use to store archived type versions. Paths are relative to the target project directory. Defaults to "Archive". |
-| --clean | -c | Statically attempt to remove all "old code" patches from the previous version as part of the migration.         | 
+| Option                    | Short | Description                                                                                                                      |
+|---------------------------|-------|----------------------------------------------------------------------------------------------------------------------------------|
+| --output-dir &lt;PATH&gt; | -o    | The directory to use to store archived type versions. Paths are relative to the target project directory. Defaults to "Archive". |
+| --clean                   | -c    | Statically attempt to remove all "old code" patches from the previous version as part of the migration.                          | 
 
 ###### `dotnet dapr workflow version list`
 Lists each of the workflow types available in the project as well as the latest version for each.
 
 Options:
 
-| Options | Short | Description |
-| -- | -- |-- |
-| --all | -a | List all versions of each workflow type, including the latest version. |
+| Options | Short | Description                                                            |
+|---------|-------|------------------------------------------------------------------------|
+| --all   | -a    | List all versions of each workflow type, including the latest version. |
 
 ###### `dotnet dapr workflow version prune`
 
@@ -532,9 +554,9 @@ in active use so it might delete them from the local project as part of a develo
 
 Options:
 
-| Options | Short | Description |
-| -- | -- | -- |
-| --workflow &lt;NAME&gt; | -w | The name of the workflow type to prune. If not specified, all workflow types will be pruned. |
+| Options                 | Short | Description                                                                                  |
+|-------------------------|-------|----------------------------------------------------------------------------------------------|
+| --workflow &lt;NAME&gt; | -w    | The name of the workflow type to prune. If not specified, all workflow types will be pruned. |
 
 ### Documentation
 The SDK and building block documentation would need a few paragraphs and several code examples added to explain and 
@@ -557,7 +579,7 @@ to the discretion of the SDK maintainers.
 But fundamentally and critically, this appropriate maintains the deterministic nature of the workflows themselves without
 introducing substantial complexity that might limit developer adoption. It doesn't change anything about how the workflows
 themselves execute thereby limiting the need for developers to re-educate themselves to a new process. Instead,
-it leaves us the broadest door possible to faciliate compatibility with existing Dapr Workflow capabilities and to
+it leaves us the broadest door possible to facilitate compatibility with existing Dapr Workflow capabilities and to
 accommodate new concepts in the future.
 
 As always, I appreciate your time and consideration.
@@ -598,8 +620,8 @@ Yes, I sort of touched on it above, but the four key downsides to type-name vers
 4) Named types doesn't actually provide any version migration.
 
 In this proposal, differing slightly from #82, numbers 1 and 2 are not relevant. The base type is used throughout the 
-proposed C# implementation as routing is automatically handled by the SDK based on the presence of the version string 
-value (if at all).
+proposed C# implementation as routing is automatically handled by the SDK based on the presence of the version prototype 
+(if at all).
 
 Further, to make small changes to the workflow, I introduce a simplified version of patching from #92. Regardless,
 the notion of having many types to handle migrations is nothing new to anyone that's worked with SQL migrations before
