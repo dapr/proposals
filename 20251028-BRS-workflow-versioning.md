@@ -327,6 +327,38 @@ Only two changes are needed from the runtime to support Workflow Versioning:
 2) This string value should be returned as a `version` property on any inbound request to the Workflow SDK, if the version
    is present in the history. If it is, the last-seen version of the `version` property should be used.
 
+The `OrchestratorRequest` should be modified to add the optional `versionData` property as follows:
+
+```protos
+message OrchestratorRequest {
+    string instanceId = 1;
+    google.protobuf.StringValue executionId = 2;
+    repeated HistoryEvent pastEvents = 3;
+    repeated HistoryEvent newEvents = 4;
+    OrchestratorEntityParameters entityParameters = 5;
+    bool requiresHistoryStreaming = 6;
+    optional TaskRouter router = 7;
+    optional string versionData = 8;
+}
+```
+
+The `OrchestratorResponse` should be modified to add the optional `versionData` property as follows:
+
+```protos
+message OrchestratorResponse {
+    string instanceId = 1;
+    repeated OrchestratorAction actions = 2;
+    google.protobuf.StringValue customStatus = 3;
+    string completionToken = 4;
+
+    // The number of work item events that were processed by the orchestrator.
+    // This field is optional. If not set, the service should assume that the orchestrator processed all events.
+    google.protobuf.Int32Value numEventsProcessed = 5;
+    optional string versionData = 6;
+}
+```
+
+
 ### Durable Task SDKs (per language)
 The runtime needn't know anything about whether versioning has been enabled on a given app as it simply needs to know
 the name of the workflow type to invoke. Everything downstream of the runtime calling the SDK to invoke this workflow
