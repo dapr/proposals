@@ -359,6 +359,9 @@ up to the maintainers of each SDK to ultimately decide the best approach to take
 differ dramatically. As the maintainer of the .NET SDK and JavaScript SDK, these suggestions represent the best design
 I've come up with so far, but again, subject to change upon final release.
 
+Typically, I wouldn't include the low-level details of SDK implementation details in this proposal, but I do so here to make
+it clear that the concept _can_ be implmeneted in other languages as imagined in this proposal. 
+
 I'm currently of the mind that a versioning convention should be applied at the global level, but that it can be o
 overridden at the workflow level as desired. Different teams may have strictly different ideas about how to version
 their code and each SDK should accommodate this while having a default fall-back.
