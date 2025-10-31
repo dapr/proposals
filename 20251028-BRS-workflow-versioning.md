@@ -320,6 +320,7 @@ update to the workflow type with the fix. The change should **not** be versioned
 not violate any deterministic guarantees in this case.
 
 ## What needs to change?
+
 ### Protos Changes
 Only two changes are needed from the runtime to support Workflow Versioning:
 1) An optional string value named `version` containing the version string defined above should be added to the workflow
@@ -365,6 +366,182 @@ the name of the workflow type to invoke. Everything downstream of the runtime ca
 is an implementation detail of the SDK. The SDK will be responsible for parsing the version string whether it's present 
 or not and routing to the appropriate workflow type, and making the patch names available for the addition of the 
 `IsPatched` method on the `WorkflowContext`.
+
+### SDK Changes
+I share the following suggestions on how this should be implemented in several of the SDKs while emphasizing that it's 
+up to the maintainers of each SDK to ultimately decide the best approach to take, so how this is actually done may
+differ dramatically. As the maintainer of the .NET SDK and JavaScript SDK, these suggestions represent the best design
+I've come up with so far, but again, subject to change upon final release.
+
+I'm currently of the mind that a versioning convention should be applied at the global level, but that it can be o
+overridden at the workflow level as desired. Different teams may have strictly different ideas about how to version
+their code and each SDK should accommodate this while having a default fall-back.
+
+#### Proposed .NET Changes
+The implementation for .NET can be quite straightforward because of the availability of source generators. I tentatively
+propose the following changes across the Dapr .NET repositories and projects.
+
+##### Dapr .NET SDK - `Dapr.Workflows`
+The `WorkflowContext` will need to be updated to reflect the `IsPatched` method. This method will accept a string value
+that reflects the name of the patch to evaluate. It will return a boolean value according to the following logic applied
+in order (copied from above):
+
+A call to `IsPatched`:
+- Returns `true` if the workflow is not presently replaying
+- Returns `true` if the workflow is replaying and the patch name is present in the version string
+- Returns `false` if the workflow is replaying and the patch name is **not** present in the version string
+
+The string associated with each request to `IsPatched` that returns true should be recorded in a list available
+on the `WorkflowContext` so it might be read and included in the `OrchestratorResponse` message communicated back to
+the Dapr runtime when the orchestration has completed.
+
+##### Dapr .NET SDK - `Dapr.Workflows.Versioning`
+This functionality will be built into a new `Dapr.Workflows.Versioning` NuGet package because it requires the use
+of a source generator so the code can be generated at compile time instead of using reflection. This ensures that
+developers are explicitly opting into the use of this feature and that the SDK is not doing anything that might
+cause unexpected behavior. Further, it'll give us a sense of how many people are using the feature based on NuGet package
+downloads.
+
+During dependency injection registration at startup, when the developer opts into using Dapr Workflows, add an opt-in
+method that allows the user to enable versioning at all. This might look like the following:
+
+```cs
+builder.Services.AddDaprWorkflow(opt => {
+  // This is the new method that opts the user into versioning and declares the convention to use
+  opt.WithVersioning(opt => opt.Strategy = DaprWorkflowVersioningStrategy.NumericalSuffix);
+
+  opt.RegisterWorkflow<MyWorkflow>();
+  opt.RegisterActivity<MyActivity>();
+  opt.RegisterActivity<MyOtherActivity>();
+});
+```
+
+An overload should exist on `WithVersioning` that accepts a collection of types that opt-out of versioning despite the
+otherwise global opt-in. This would allow those teams that for whatever reason do not want to use versioning for a 
+workflow to opt all other workflow in and not those that are specified.
+
+The SDK should also introduce an attribute called `VersionedWorkflowAttribute`, though per C# convention, this would
+only show up as `VersionedWorkflow`. It should accept a minimum of a string bearing the canonical name of the decorated
+workflow and optionally a `DaprWorkflowVersioningStrategy` allowing the default convention to be overridden for this 
+and other workflow types bearing the same canonical name. Once globally specified in the DI registration, workflow
+versioning is performed on an opt-out basis. 
+
+When not applying any overriding configurations, use of the attribute is not required as .NET has the capability via
+source generators to find this type based on the existing DI workflow registrations (to infer the canonical name) 
+and infer the subsequent types based on the indicated convention. However, best practices would be to proactively
+mark each workflow with this attribute nonetheless for consistency:
+
+```cs
+[VersionedWorkflow("MyWorkflow")]
+public sealed class MyWorkflow2 : Workflow<string, object?>
+{
+}
+```
+
+When looking to override the versioning convention, the developer could pass an additional argument into the attribute:
+
+```cs
+[VersionedWorkflow("MyWorkflow", DaprWorkflowVersioningStrategy.DateSuffix)]
+public sealed class MyWorkflow20250501 : Workflow<string, object?>
+{
+}
+```
+
+In a later version of the SDK implementation, there might be some sort of migration scheme whereby the developer can
+change versioning strategies on a per-workflow basis over the course of implementing new versions. However, this is 
+considered out of scope for this initial release. Rather, it will need to be documented that once a versioning
+strategy is selected, it should remain consistently applied, and in .NET, (time willing), we can enforce this with 
+analyzers.
+
+##### Dapr Durable Task .NET SDK
+The following details how type versioning will work on the internal SDK router.
+
+The workflow SDK will add a new interface called `IWorkflowRegistry` which will provide the properties expected by a 
+generated `WorkflowRegistry` class that will serve as a lookup table for which workflow types represent the most recent 
+versions of any given type (if any).
+
+```cs
+public interface IWorkflowRegistry
+{
+    public Dictionary<string, List<string>> RegisteredWorkflows { get; }
+}
+```
+
+The dictionary should be keyed by the canonical name of the workflow type and the value should be a list of the
+version names that are available for that type, ordered by most recent first per the configuration convention applied
+to each.
+
+A `WorkflowRegistry` partial class will already exist in the SDK so it's can be easily referenced, but the logic to
+"set" the `RegisteredWorkflows` property on the class will need to be implemented by the source generator itself. It
+will look at the configured versioning strategy in the project's DI registration, recursively locate each workflow
+type in the solution, compare each of the suffixes to their configured versioning strategies (either globally or on 
+each `VersionedWorkflow` attribute) and then populate the dictionary accordingly.
+
+At runtime, the GRPC Workflow Processor class will receive an `OrchestratorRequest` which may contain an optional 
+`versionData` property. If it does, the SDK will parse out the workflow type and realized patches from this string and
+this represents a "replay" operation.
+
+If this represents a replay operation After building the runtime state from the event history, the 
+`GrpcDurableTaskWorker.Processor` will find the value containing the indicated workflow type (to validate it exists) 
+and if not, it will throw an exception to the Dapr runtime indicating an execution failure. If it does find the type, 
+the shim factory will be modified to point the inbound request to a new instance of the indicated type rather than the 
+canonical type registered in DI. Execution will proceed as normal.
+
+If this does not represent a replay operation, a lookup will be done on the dictionary against the canonical keys to 
+retrieve the latest (first element in the list value) workflow type and the shim factory will be modified to point the
+inbound request to a new instance of this type rather than the canonical type registered in DI. Execution will proceed
+as normal, except when the run concludes, the `OrchestratorResponse` will be modified to include a serialized 
+`versionData` value reflecting both the canonical workflow type and the list of patch names for which the workflow
+context evaluated as `true` during execution.
+
+##### Dapr .NET Workflow CLI
+A new CLI tool should be created that can be installed as part of the application following the approach used by 
+Entity Framework Core. This tool would allow the developer to perform administrative operations with the workflows to
+simplify the level of effort needed to properly create new typed versions. This tool would be installed as a global
+.NET tool on the developer's system and would expect to be focused on the working directory containing the workflow
+project.
+
+In its initial release, it might be good to support the following commands with examples of calling them, accepted 
+parameters, and expected operational result:
+
+###### `dotnet dapr workflow version add`
+Adds a new typed version to the workflow project for the specified canonical workflow type.
+
+Arguments:
+
+| Argument     | Description |
+|--------------| -- |
+| &lt;NAME&gt; | The canonical name of the workflow type to add a new typed version to. |
+
+Options:
+
+| Option                                    | Short | Description                                                                                                                      |
+|-------------------------------------------| -- |----------------------------------------------------------------------------------------------------------------------------------|
+| --output-dir &lt;PATH&gt;                 | -o | The directory to use to store archived type versions. Paths are relative to the target project directory. Defaults to "Archive". |
+| --clean | -c | Statically attempt to remove all "old code" patches from the previous version as part of the migration.         | 
+
+###### `dotnet dapr workflow version list`
+Lists each of the workflow types available in the project as well as the latest version for each.
+
+Options:
+
+| Options | Short | Description |
+| -- | -- |-- |
+| --all | -a | List all versions of each workflow type, including the latest version. |
+
+###### `dotnet dapr workflow version prune`
+
+*This would not be available with the 1.17 release, but perhaps in a later version after coordinating how this might
+work with the Dapr CLI, perhaps...*
+
+The tool could query the live Dapr instance to understand which versions are no longer
+in active use so it might delete them from the local project as part of a developer-driven cleaning operation.
+
+Options:
+
+| Options | Short | Description |
+| -- | -- | -- |
+| --workflow &lt;NAME&gt; | -w | The name of the workflow type to prune. If not specified, all workflow types will be pruned. |
 
 ### Documentation
 The SDK and building block documentation would need a few paragraphs and several code examples added to explain and 
