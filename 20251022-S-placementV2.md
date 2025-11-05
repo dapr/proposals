@@ -18,7 +18,8 @@ This consolidation allows us to:
 - Improve stability by removing the hard coded raft implementation for a simplified leadership algorithm.
 - Enable more consistent, bounded actor distribution via the *Consistent Hashing with Bounded Loads* algorithm.
 - Improve latency and reliability for both Actors and Workflows by colocating state coordination in one process.
-- Remove global locking and instead have per actor type locking.
+- Remove global locking and instead have per actor per namespace type locking.
+- Remove resource waste with unnecessary heartbeats.
 
 This will be feature gated via an opt-in (new) feature flag: `SchedulerPlacement`.
 
@@ -33,11 +34,11 @@ computes hash tables mapping actor IDs to sidecars, and pushes versioned tables 
 ### How Placement works today
 
 1. **Membership:** Each sidecar connects to the Placement leader via a long-lived gRPC stream (`ReportDaprStatus`), sending its `appID`, `namespace`, `actor types`, and periodic heartbeats.
-2. **Table Computation:** The leader builds a hash table per `(namespace, actorType)` to map actor IDs → hosts.
+2. **Table Computation:** The leader builds a hash table per `(namespace, actorType)`. Whereby `host = fn(actorType, actorID, tableVersion)`.
 3. **Locking:** The leader locks while rebuilding tables to ensure atomic updates (effectively a namespace-wide “stop-the-world” window where it `locks`, `updates`, `unlocks`).
 4. **Dissemination:** The leader pushes versioned placement tables to sidecars, which swap their local routing tables upon receipt.
 5. **Leader Election:** Placement replicas elect a leader via HashiCorp Raft. The leader maintains all in-memory membership and placement state.
-6. **Persisted:** `membership`, `apiLevel`, `tableGeneration`, and global `config` are persisted in Raft log/snapshots. 
+6. **Persisted:** `membership`, `apiLevel`, `tableGeneration`, and global `config` are persisted in Raft log/snapshots.
 7. **Placement rings themselves are _in-memory only_ on the leader** and are rebuilt from membership on every leader election. There is no durable ring storage — this is intentional to keep the critical path fast.
 
 Sidecars:
@@ -55,6 +56,7 @@ Sidecars:
 - **Global namespace locks** during table rebuilds.
 - **Difficult to reproduce bugs** from cluster events, connection issues, network partitions, or leader churn in Placement.
 - **No bounded load control** hotspots during scaling, uneven actor distribution.
+- **Wasteful Heartbeats** with per second heart beat calls per sidecar
 
 ### Proposed Benefits
 
@@ -261,10 +263,13 @@ message Host {
   string namespace = 4;
   string pod = 5;
   repeated string entities = 6; // actor types hosted
+
+  // below is needed for phase 3
+  map<string, uint64> active_by_type = 7; // all types hosted {type -> local active count}
 }
 
 message PlacementOrder {
-  enum Operation { LOCK = 1; UPDATE = 2; UNLOCK = 3; }
+  enum Operation { LOCK = 1; UPDATE = 2; UNLOCK = 3; UPDATE_LMAX = 4; } // #4 is needed for phase 3
   
   Operation operation = 1;
   string namespace = 2;
@@ -272,13 +277,16 @@ message PlacementOrder {
   // Required for lock/unlock
   // empty for all types upon startup
   // this is not needed for update since its derived from tables
-  repeated string actor_types = 3;
+  repeated string actor_types = 3; // scope
 
   // Per-type versions, changed on update
-  map<string, uint64> versions = 4;
+  map<string, uint64> versions = 4; // for UPDATE
 
   // Partial tables allowed, only changed types.
-  PlacementTables tables = 5;
+  PlacementTables tables = 5; // for UPDATE
+
+  // below is needed for phase 3
+  map<string, uint64> max_load_by_type = 6; // Lmax[T] for UPDATE/UPDATE_LMAX
 }
 
 message PlacementTables {
@@ -296,8 +304,7 @@ message PlacementTable {
 message TableHost {
   string name = 1;
   int64  port = 2;
-  int64  load = 3;
-  string appID = 4;
+  string appID = 3;
 }
 ```
 
@@ -306,35 +313,50 @@ Pseudo example for reference:
 Sidecar starts up and connects to scheduler
 ```json
 { "operation":"LOCK", "namespace":"ns", "actor_types":[] }
-{ "operation":"UPDATE", "namespace":"ns", "actor_types":[], "versions":{"T1":1,"T2":1},
+{ "operation":"UPDATE", "namespace":"ns",
+  "actor_types":[],
+  "versions":{"T1":1,"T2":1},
   "tables":{
+    "replication_factor":64,
     "entries":{
-      "T1":{"load_map":{"10.0.0.1:3500":{"name":"10.0.0.1:3500","port":3500,"app_id":"app"}}},
-      "T2":{"load_map":{"10.0.0.3:3500":{"name":"10.0.0.3:3500","port":3500,"app_id":"app"}}}
-    },
-    "default_replication_factor":64
-  }
+      "T1":{"load_map":{"10.0.0.1:3500":{"name":"10.0.0.1:3500","port":3500,"appID":"app"}}},
+      "T2":{"load_map":{"10.0.0.3:3500":{"name":"10.0.0.3:3500","port":3500,"appID":"app"}}}
+    }
+  },
+  "max_load_by_type":{"T1":60,"T2":42}
 }
 { "operation":"UNLOCK", "namespace":"ns", "actor_types":[] }
 ```
 
-Delta (T2)
+Delta (T2) (ring change)
 ```json
 { "operation":"LOCK", "namespace":"ns", "actor_types":["T2"] }
-{ "operation":"UPDATE", "namespace":"ns", "actor_types":["T2"], "versions":{"T2":7},
+{ "operation":"UPDATE", "namespace":"ns",
+  "actor_types":["T2"],
+  "versions":{"T2":7},
   "tables":{
     "entries":{
       "T2":{
         "load_map":{
-          "10.0.0.1:3500":{"name":"10.0.0.1:3500","port":3500,"app_id":"app"},
-          "10.0.0.3:3500":{"name":"10.0.0.3:3500","port":3500,"app_id":"app"}
-        }
-        "replication_factor":128  // overridden, for hot actor
+          "10.0.0.1:3500":{"name":"10.0.0.1:3500","port":3500,"appID":"app"},
+          "10.0.0.3:3500":{"name":"10.0.0.3:3500","port":3500,"appID":"app"}
+        },
+        "replication_factor":128
       }
     }
-  }
+  },
+  "max_load_by_type":{"T2":61}
 }
 { "operation":"UNLOCK", "namespace":"ns", "actor_types":["T2"] }
+```
+
+// for phase 3:
+Lmax‑only (no lock bc its a threshold vs for routing):
+```json
+{ "operation":"UPDATE_LMAX", "namespace":"ns",
+  "actor_types":["T2"],
+  "max_load_by_type":{"T2":62}
+}
 ```
 
 ![PerTypeDissemination](./resources/20251022-S-placementV2/perTypeDissemination.png)
@@ -492,6 +514,12 @@ Big idea: Actors are stickier and only move if their current host is full and a 
 double activation due to the 3 phase (now, per-type) lock and deterministic ring.
 
 Essentially, there is just a ring walk now to ensure load balance.
+
+Flow of load in the system and how its used via a Diagram
+
+![loadStartupFlow](./resources/20251022-S-placementV2/loadStartupFlow.png)
+![loadSteadyStateFlow](./resources/20251022-S-placementV2/loadSteadyStateFlow.png)
+![loadDaprd2DownFlow](./resources/20251022-S-placementV2/loadDaprd2DownFlow.png)
 
 ### Feature lifecycle outline
 
