@@ -43,7 +43,7 @@ and receiving an output from some external system (e.g., a child workflow, an ac
 It's mandatory that Dapr remain deterministic at the workflow level so that these inputs are consistent - this allows
 us to perform a replay operation that lets us skip over successful historical boundary invocations and retrieve the outputs
 for each, assign those to the workflow variables and proceed accordingly without re-running the actual activities giving
-us a richer system than one might get through a checkpointing process. 
+us a richer system than one might get through a checkpointing process.
 
 This does mean that we face challenges when designing a comprehensive versioning scheme. First and foremost, all versioning
 must accommodate the fact that we're looking to change the external boundary invocations in some way in future runs, but
@@ -97,8 +97,9 @@ migrated to a newer typed version (and thus are not recorded in the runtime's wo
 would only be available at runtime and not at compilation time, limiting the timeliness of the information at this time.
 
 ## Design
-This proposal suggests using an in-SDK router for versioning because:
-1. It minimizes the amount of state required on the runtime in each workflow log to maintain live versioning information
+This proposal suggests repurposing the in-SDK router for versioning because:
+1. It minimizes the amount of state required on the runtime in the workflow events to maintain the most recent 
+versioning and patching information
 2. It maximizes the flexibility of SDKs to provide workflow conventions that best highlight each SDK's ecosystem and
 tooling capabilities.
 
