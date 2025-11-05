@@ -170,7 +170,7 @@ Goal: Eliminate namespace-wide batching and global activation pauses
 Rebuild and disseminate only the actor types whose eligible hosts changed, with per‑type lock/update/unlock. Other types continue serving traffic uninterrupted.
 
 Some definitions:
-- Entities: the actor types a sidecar hosts. They come from the app/SDK registering actors; daprd’s actor subsystem exposes this, and daprd reports it.
+- Actor Types: the actor types a sidecar hosts. They come from the app/SDK registering actors; daprd’s actor subsystem exposes this, and daprd reports it.
 - Ring: the per‑actor‑type consistent hashing structure that maps (actorType, actorID) → host, aka the “consistent hash”.
 - Placement table: a namespace snapshot containing a map of actorType → ring plus metadata. In Phase 2 we send partial updates (only the changed types).
 
@@ -193,7 +193,7 @@ Implications:
 
 ```text
 Event: dapr-2 disconnects (it hosted only T2)
-1) Scheduler notes Entities(dapr-2) included T2 → EligibleHosts[T2] changed.
+1) Scheduler notes Actor_Types(dapr-2) included T2 → EligibleHosts[T2] changed.
 2) NamespaceController:
    Routes events to ActorTypeController, for namespaced operations
 3) ActorTypeController[T2]:
@@ -205,14 +205,14 @@ Event: dapr-2 disconnects (it hosted only T2)
 Sidecars: pause lookups only for T2, merge T2’s ring, resume T2. T1 unaffected.
 ```
 T1, T2 come from actor types registered in the SDK via [RegisterActorImplFactoryContext](https://github.com/cicoyle/test-apps/blob/main/scheduler-actor-reminders/server/player-actor.go#L35).
-`daprd` detects them using [actorTable.SubscribeToTypeUpdates(...)](https://github.com/dapr/dapr/blob/master/pkg/actors/table/table.go#L216) and reports them as `entities` in `ReportDaprStatus`.
+`daprd` detects them using [actorTable.SubscribeToTypeUpdates(...)](https://github.com/dapr/dapr/blob/master/pkg/actors/table/table.go#L216) and reports them as `actor_types` in `ReportDaprStatus`.
 
 **High Level Controllers for how this will work:**
 Controllers will live in Scheduler, essentially logical processes or go routines for example:
 - NamespaceController
   - Scopes state and streams by namespace
 - ConnectionController
-  - Watches sidecar streams, tracks Entities per sidecar, emits SidecarAdded/Removed/Updated events by namespace.
+  - Watches sidecar streams, tracks actor_types per sidecar, emits SidecarAdded/Removed/Updated events by namespace.
 - ActorTypeController[T]
   - On events that affect T: recompute Ring[T], increment Version[T], disseminate type‑scoped Lock/Update/Unlock.
   - Retries per target, does not block other types.
@@ -223,7 +223,7 @@ What this means we need:
 - Targeted drain: after updating types [T...], drain only local actors of those types whose new owner is remote. Do not call a global “halt all”.
 - Per‑type versioning/readiness:
   - Track versionByType[T]. No need for a global version.
-  - During initial dapr sidecar startup, the sidecar shouldn’t accept actor calls until it has a ring for every actor type it locally reports (its Entities). 
+  - During initial dapr sidecar startup, the sidecar shouldn’t accept actor calls until it has a ring for every actor type it locally reports (its Actor_types). 
   - After that, subsequent changes are per-type: only the affected types must pause, update, and resume.
 
 Sidecar Startup vs steady-state
@@ -251,7 +251,7 @@ Improvements:
 Protos (slightly tweaked from original from placement)
 ```protobuf
 ...
-    // sidecar reports its presence and Entities (actor types);
+    // sidecar reports its presence and actor_types;
     // (now) scheduler sends lock/update/unlock orders
     rpc ReportDaprStatus(stream Host) returns (stream PlacementOrder) {}
 ...
@@ -262,7 +262,7 @@ message Host {
   string appID = 3;
   string namespace = 4;
   string pod = 5;
-  repeated string entities = 6; // actor types hosted
+  repeated string actor_types = 6; // actor types hosted
 
   // below is needed for phase 3
   map<string, uint64> active_by_type = 7; // all types hosted {type -> local active count}
