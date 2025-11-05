@@ -198,55 +198,29 @@ The version object needs to reflect the name (not the canonical name) of the wor
 in the previous execution so the SDKs can override the routing and point directly to this type. It also needs to include
 the list of patch identifiers that evaluated as true when this was run so they might replay in the same manner.
 
-I propose that a new prototype be created to reflect this data in a cleanly structured manner:
+We implement this in the following manner instead of using a fixed versioning prototype because the list of patch names 
+should only be populated with the new patch identifiers encountered each workflow execution and should not be a running 
+list as this would be unnecessarily redundant and a waste of state resources. This approach also means that versioning
+is strictly stored in the workflow history state and doesn't require any change to how the runtime starts orchestration
+requests (via `OrchestratorRequest` messages).
+
+The following modifications should be made on the `OrchestratorCompletedEvent` when the SDK has finished workflow execution
+so it can reflect the name of the workflow type that was executed along with the list of patch identifiers that were 
+newly evaluated as true during the execution. Both properties are marked as optional for compatibility with older
+events, but in practice, the SDK should _always_ populate at least the `workflowTypeName` and the `patchNames` as 
+applicable for a versioned workflow going forward. 
 
 ```protos
-// Reflects the workflow version and patches successfully evaluated for workflow replay purposes
-message TargetWorkflowVersion {
-  // The name of the specific workflow type executed as part of a previous workflow execution
-  string workflowTypeName = 1;
-  // The list of patches that evaluated as true during the execution
-  repeated string patchNames = 2;
+message OrchestratorCompletedEvent {
+    // The name of the specific workflow type executed
+    optional workflowTypeName = 1;
+    // The list of patches that newly evaluated as true during the orchestrator execution
+    optional repeated string patchNames = 2;
 }
 ```
 
-If this is part of a replay, this proto should be sent by the runtime to the SDK as part of a request to start an 
-orchestration via the `OrchestratorRequest` message, modified as follows:
-
-```protos
-message OrchestratorRequest {
-    string instanceId = 1;
-    google.protobuf.StringValue executionId = 2;
-    repeated HistoryEvent pastEvents = 3;
-    repeated HistoryEvent newEvents = 4;
-    OrchestratorEntityParameters entityParameters = 5;
-    bool requiresHistoryStreaming = 6;
-    optional TaskRouter router = 7;
-    // This should be populated with the version information from a previous `OrchestratorResponse` if this is a replay
-    optional TargetWorkflowVersion version = 8;
-}
-```
-
-In the response from the SDK to the runtime regarding the orchestration operation, the `OrchestratorResponse` message
-should be modified as follows:
-```protos
-message OrchestratorResponse {
-    string instanceId = 1;
-    repeated OrchestratorAction actions = 2;
-    google.protobuf.StringValue customStatus = 3;
-    string completionToken = 4;
-
-    // The number of work item events that were processed by the orchestrator.
-    // This field is optional. If not set, the service should assume that the orchestrator processed all events.
-    google.protobuf.Int32Value numEventsProcessed = 5;
-    // While marked as optional for backwards compatibility, this should always be populated by versioned workflows
-    optional TargetWorkflowVersion version = 6;
-}
-```
-
-If the operation was a replay, the `version` field should be populated with the original information provided by the
-`OrchestratorRequest` message. If not, the `version` field should be populated with the name of the actual workflow
-type that executed the operation in the SDK and a list of each patch identifier that evaluated as true during execution.
+Any subsequent rehydration of the workflow will require that the SDK read these `OrchestratorCompletedEvent` messages from
+the workflow history to build a list of the patches that should evaluate as true for replay purposes.
 
 ## Practical Example
 This proposal diverges in a few refined ways from the proposal at #82. Assuming a C# application, registration
