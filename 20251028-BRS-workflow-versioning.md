@@ -223,29 +223,64 @@ Any subsequent rehydration of the workflow will require that the SDK read these 
 the workflow history to build a list of the patches that should evaluate as true for replay purposes.
 
 ## Practical Example
-This proposal diverges in a few refined ways from the proposal at #82. Assuming a C# application, registration
-does not have to differ in any meaningful way from how it exists today with the exception of the versioning opt-in and 
-configuration:
+Each of the SDKs should support a lowest-common-denominator approach across the board so that documentation around 
+versioning can be consistent. This doesn't rule out the possibility for each SDK to introduce additional tooling that
+simplifies versioning and patching on a case-by-case basis. Suggestions regarding such tooling for Node and .NET are 
+covered later on in this proposal).
+
+This is what an explicit versioning registration might look like for each of our supported SDKs:
+
+```golang
+if err := r.AddVersionedWorkflow(MyWorkflow, 1, "MyWorkflow"); err != nil {
+	log.Fatalf("failed to add workflow: %v", err)
+}
+if err := r.AddVersionedWorkflow(MyWorkflowFixed, 2, "MyWorkflow"); err != nil {
+	log.Fatalf("failed to add workflow: %v", err)
+}
+```
+
+```python
+@workflow_runtime.workflow(version=1, canonical_name="my_workflow")
+def my_workflow(ctx: DaprWorkflowContext, wf_input: str):
+    pass
+
+@workflow_runtime.workflow(version=2, canonical_name="my_workflow")
+def my_workflow_fixed(ctx: DaprWorkflowContext, wf_input: str):
+    pass
+```
+
+```ts
+const runtime = new WorkflowRuntime();
+runtime.registerVersionedWorkflow(MyWorkflow, "my_workflow", 1);
+runtime.registerVersionedWorkflow(MyWorkflowV2, "my_workflow", 2);
+```
 
 ```csharp
 var builder = Host.CreateDefaultBuilder(args).ConfigureServices(services => {
     services.AddDaprWorkflow(options => {
-        options.WithVersioning(opt => opt.Strategy = DaprWorkflowVersioningStrategy.NumerialSuffix); //Adding this enables versioning on this application
-    
-        // Standard workflow registration (no need to record any versioned types except the base type absent suffix)
-        options.RegisterWorkflow<MyWorkflow>();
-        
-        // Standard activity registration
-        options.RegisterActivity<MyActivity>();
-        options.RegisterActivity<MyOtherActivity>();         
+        options.RegisterVersionedWorkflow<MyWorkflow>(1, "my_workflow");
+        options.RegisterVersionedWorkflow<MyWorkflowV2>(2, "my_workflow");
     });
 });
 ```
 
+```java
+WorkflowRuntimeBuilder builder = new WorkflowRuntimeBuilder()
+    .registerVersionedWorkflow(MyWorkflow.class, 1, "my_workflow")
+    .registerVersionedWorkflow(MyWorkflowV2.class, 2, "my_workflow");
+```
+
+
 ### Name-Typed Workflows
 To create a new named-type workflow, the developer would create a new type with the same name as their existing workflow type
-and modify the name to reflect the next version (e.g., increase the number on the name suffix by one or apply today's
-date). Documentation would suggest that the older type be kept in a separate directory, e.g., "Archive" that contains all
+then modify the name to reflect the next version. Because of our standardized explicit type registration approach, Dapr
+does not put any constraints on what naming strategy the developer wishes to use here, though as assistive tooling is 
+built out for each SDK, there may be some limitations imposed based on configured strategies. 
+
+While outside the scope of this particular proposal since it's handled separately by each SDK where applicable, this 
+is covered briefly in later sections for the .NET and JavaScript SDKs.
+
+Documentation would suggest that the older type be kept in a separate directory, e.g., "Archive" that contains all
 the deprecated workflow types no longer in active use to avoid polluting the directory. The developer is then free to make
 as many changes as they would like to the new workflow without consideration for backwards compatibility with the former
 version as migration will be performed as a clean transition between successful executions.
@@ -255,11 +290,11 @@ Patches are applied to workflows to apply simple code changes that just don't ne
 to accommodate. They are intentionally narrow in scope and capability as they're intended to provide a "Band-Aid" style
 change to an existing workflow that introduces another path in future invocations that differs from the "old code" path.
 
-In the C# SDK, a method would be introduced to the `WorkflowContext` instance (typically provided to the workflow in a 
-variable called `context`) called `IsPatched`, e.g., `context.IsPatched(string name)`. The name parameter is used to 
-differentiate patches throughout a versioned type and is distinct to that version of the workflow type. In other words,
-a patch name can be re-used in other workflows and workflow versions without any chance of conflict. In that sense, it 
-provides mild documentation capabilities.
+Naming conventions notwithstanding across SDKs, a method would be introduced to the `WorkflowContext` instance 
+(typically provided within the workflow in a variable called `context`) called `IsPatched`, 
+e.g., `context.IsPatched(string name)`. The name parameter is used to differentiate patches throughout a versioned type 
+and is distinct to that version of the workflow type. In other words, a patch name can be re-used in other workflows 
+and workflow versions without any chance of conflict. In that sense, it provides some implicit documentation capabilities.
 
 The return type of a call to `context.IsPatched` is a non-nullable boolean value meaning that it's intended to be used 
 only to provide an `if/else` statement to the workflow code.
@@ -273,7 +308,7 @@ Patches themselves are not versioned. They exist within the scope of the version
 do not exist beyond two states.
 
 ##### Example
-The following demonstrates what a workflow supplemented with a patch might look like in a C# application:
+The following demonstrates what a workflow supplemented with a patch might look like in different SDKs:
 
 ```csharp
 internal sealed SampleWorkflow : Workflow<string, object?>
@@ -301,6 +336,17 @@ internal sealed SampleWorkflow : Workflow<string, object?>
 }
 ```
 
+```ts
+const workflow: TWorkflow = async function* (ctx: WorkflowContext): any {
+    const tasks: Task<any>[] = [];
+    if (ctx.isPatched("change-something")) {
+        // ...
+    } else {
+        // ...
+    }
+}
+```
+
 ## Caveats
 Determinism is still mandatory. Neither #82, #92 nor this proposal proffer a fix for a scenario in which there's a bug
 in the workflow that's currently wreaking havoc on the system and needs to be fixed. In the sole case that there's an
@@ -309,48 +355,13 @@ no recorded behavior to violate non-deterministically), the recommended approach
 update to the workflow type with the fix. The change should **not** be versioned per any of these proposals as it does
 not violate any deterministic guarantees in this case.
 
-## Protos Changes
-As described in more detail above regarding expected behavior, a new message type should be added for clarity and 
-two existing messages should be modified to reflect an optional field for this new type:
+## Supplementary SDK Changes
+In addition to the explicit versioning registration described above, the following suggestions are provided for some 
+SDKs to provide helpful tooling designed to make patching and versioning easier. This would be optional and provided
+on a case-by-case basis through the SDKs.
 
-```protos
-// Reflects the workflow version and patches successfully evaluated for workflow replay purposes
-message TargetWorkflowVersion {
-  // The name of the specific workflow type executed as part of a previous workflow execution
-  string workflowTypeName = 1;
-  // The list of patches that evaluated as true during the execution
-  repeated string patchNames = 2;
-}
-
-message OrchestratorRequest {
-    string instanceId = 1;
-    google.protobuf.StringValue executionId = 2;
-    repeated HistoryEvent pastEvents = 3;
-    repeated HistoryEvent newEvents = 4;
-    OrchestratorEntityParameters entityParameters = 5;
-    bool requiresHistoryStreaming = 6;
-    optional TaskRouter router = 7;
-    // This should be populated with the version information from a previous `OrchestratorResponse` if this is a replay
-    optional TargetWorkflowVersion version = 8;
-}
-
-message OrchestratorResponse {
-    string instanceId = 1;
-    repeated OrchestratorAction actions = 2;
-    google.protobuf.StringValue customStatus = 3;
-    string completionToken = 4;
-
-    // The number of work item events that were processed by the orchestrator.
-    // This field is optional. If not set, the service should assume that the orchestrator processed all events.
-    google.protobuf.Int32Value numEventsProcessed = 5;
-    // While marked as optional for backwards compatibility, this should always be populated by versioned workflows
-    optional TargetWorkflowVersion version = 6;
-}
-```
-
-## SDK Changes
 I share the following suggestions on how this should be implemented in several of the SDKs while emphasizing that it's 
-up to the maintainers of each SDK to ultimately decide the best approach to take, so how this is actually done may
+up to the maintainers of each SDK to ultimately decide the best approach to take. How this is actually done may
 differ dramatically. As the maintainer of the .NET SDK and JavaScript SDK, these suggestions represent the best design
 I've come up with so far, but again, subject to change upon final release.
 
@@ -394,15 +405,16 @@ builder.Services.AddDaprWorkflow(opt => {
   // This is the new method that opts the user into versioning and declares the convention to use
   opt.WithVersioning(opt => opt.Strategy = DaprWorkflowVersioningStrategy.NumericalSuffix);
   
-  // New alternate workflow registration (if the base type isn't available - this allows the canonical name to be defined for a given type)
-  options.RegisterVersionedWorkflow(nameof(MyWorkflow2), "MyWorkflow"); 
-
-  // Existing registration functionality
+  // Existing registration functionality - this defines the base canonical names for each workflow and activity
   opt.RegisterWorkflow<MyWorkflow>();
   opt.RegisterActivity<MyActivity>();
   opt.RegisterActivity<MyOtherActivity>();
 });
 ```
+
+Note that this would require the specification of a versioning strategy and would exclude any need to use the newly
+introduced `options.RegisterVersionedWorkflow(nameof(MyWorkflow2), "my_workflow");` method as each time will be identified
+at build time.
 
 An overload should exist on `WithVersioning` that accepts a collection of types that opt-out of versioning despite the
 otherwise global opt-in. This would allow those teams that for whatever reason do not want to use versioning for a 
