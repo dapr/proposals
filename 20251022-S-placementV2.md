@@ -3,6 +3,7 @@
 * Author(s): Cassie Coyle (cicoyle)
 * State: Proposed
 * Introduced: 10-31-2025
+* Binding votes: dapr/dapr maintainers
 
 ## Overview
 
@@ -63,7 +64,7 @@ Sidecars:
 By merging Placement into Scheduler:
 
 - **Reliability**: One etcd-based Raft implementation instead of custom Raft implementation
-- **Latency**: Sidecars maintain only one gRPC stream (to Scheduler) instead of two, reduce hops with Actor/Workflow usage
+- **Latency**: Sidecars maintain only one gRPC stream (to Scheduler) instead of two, reduce hops with Actor/Workflow/Reminder usage
 - **Operational Overhead**: One fewer StatefulSet, less config and logs, fewer moving parts
 - **Performance**: Per actor type updates and locking, no global locks
 - **Maintainability**: Remove lines of legacy leadership and Raft code
@@ -80,10 +81,11 @@ are difficult for maintainers to reproduce and nearly impossible to pin down and
 
 * What is in scope for this proposal?
   * Full functional parity with current Placement service with feature flag
-* What will not change?
+* What will not change / what is out of scope for this proposal?
   * Actor runtime semantics: activation/state/timers/etc
   * Client-side hashing for actor routing (remains in the sidecar)
   * Placement tables (remain in-memory)
+  * Actor feature requests
 * What alternatives have been considered, and why do they not solve the problem?
   * Keep Placement and Scheduler separate and fix existing Placement issues: 
     * Hand rolled raft, means 2 leaderships to manage
