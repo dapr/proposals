@@ -6,11 +6,11 @@
 
 This proposal details new functionality to the workflow runtime to give users the ability to delete completed workflow state from the actor state store after some configured time.
 All workflow instances may be configured with a unique TTL at workflow execution time.
-The default remains that workflow state will _not_ be deleted form the actor state store, and will remain there indefinitely.
+The default remains that workflow state will _not_ be deleted from the actor state store, and will remain there indefinitely.
 
 ## Background
 
-It is currently the case that in order for users to delete old workflow state from the actor state store database, they either need to use the Purge Workflow API, or delete state from the database directy, either via out of Dapr database operations, or via using some kind of first class TTL feature of that database.
+It is currently the case that in order for users to delete old workflow state from the actor state store database, they either need to use the Purge Workflow API, or delete state from the database directly, either via out of Dapr database operations, or via using some kind of first class TTL feature of that database.
 Users typically want to delete old workflow state after some period of time from when the workflow has reached a terminal state.
 
 https://github.com/dapr/dapr/issues/9020
@@ -37,7 +37,7 @@ $ dapr run my-workflow --purge-ttl=5d
 $ dapr run my-workflow --purge-ttl=0s
 ```
 
-The new purge reminders will be displayed by:
+The new purge reminders will be displayed like:
 
 ```bash
 $ dapr scheduler list
@@ -94,18 +94,20 @@ workflowClient.ScheduleNewWorkflowAsync(
 #### Java
 
 ```java
-workflowClient.scheduleNewWorkflow(OrderProcessingWorkflow.class, TODO: @joshvanl);
+opts.setPurgeTTL(Duration.ofDays(5));
+workflowClient.scheduleNewWorkflow(OrderProcessingWorkflow.class, opts);
 ```
 
 ```java
-workflowClient.scheduleNewWorkflow(OrderProcessingWorkflow.class, TODO: @joshvanl);
+opts.setPurgeTTL(Duration.ofSeconds(5));
+workflowClient.scheduleNewWorkflow(OrderProcessingWorkflow.class, opts);
 ```
 
 ### Runtime
 
 #### protos
 
-The following protos will be updated with the new state TTL duration field so it is piped from workflow creation to execution.
+The following protos will be updated with the new purge TTL duration field so it is piped from workflow creation to execution.
 
 The new option will be added to `CreateInstanceRequest`, populated by the client.
 
@@ -113,7 +115,7 @@ The new option will be added to `CreateInstanceRequest`, populated by the client
 message CreateInstanceRequest {
     string instanceId = 1;
     string name = 2;
-    // OTHERS
+    // EXISTING
     google.protobuf.Duration purgeTTL = 10; // NEW
 }
 ```
@@ -125,14 +127,14 @@ This field will be populated by the durabletask backend executor, piping the fie
 ```proto
 message ExecutionStartedEvent {
     string name = 1;
-    // OTHERS
+    // EXISTING
     google.protobuf.Duration purgeTTL = 10; // NEW
 }
 ```
 
 #### Actors
 
-Upon workflow reaching a terminal state, after the orchestraion actor has written the result to the actor state store, it will also create an actor reminder if the `purgeTTL` field is present in the execution started event.
+Upon workflow reaching a terminal state, after the orchestraion actor has written the result to the actor state store, it will then create an actor reminder if the `purgeTTL` field is present in the execution started event.
 
 This reminder will target a new actor workflow type, with the reminder name being the instance ID of the workflow.
 
@@ -142,10 +144,10 @@ The new actor type will follow convention and have the following form:
 dapr.internal.<namespace>.<app-id>.purge-workflow
 ```
 
-Upon activation of the reminder, the new purge actor will be activate, call the purge API on the workflow orchestrator actor for the given instance ID, and then deactivate itself.
-Along with the other workflow actor types, this type will be registered on workflow client connection, and unregistration on workflow client disconnection.
+Upon activation of the reminder, the new purge actor will be activated, call the purge API on the workflow orchestrator actor for the given instance ID, and then deactivate itself.
+Along with the other workflow actor types, this type will be registered on workflow client connection, and unregistered on workflow worker client disconnection.
 
-By using a new actor type, this feature is fully backwards compatible since older clients will not register for this new purge workflow type.
+By using a new actor type, this feature is fully backwards compatible as older clients will not register for this new purge workflow type.
 
 
 ```
