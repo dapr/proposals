@@ -5,7 +5,7 @@
 ## Overview
 
 This proposal details new functionality to the workflow runtime to give users the ability to delete completed workflow state from the actor state store after some configured time.
-All workflow instances may be configured with a unique TTL at workflow execution time.
+All workflow instances may be configured with a unique TTL at workflow scheduling time.
 The default remains that workflow state will _not_ be deleted from the actor state store, and will remain there indefinitely.
 
 ## Background
