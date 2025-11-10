@@ -210,7 +210,7 @@ newly evaluated as true during the execution. Both properties are marked as opti
 events, but in practice, the SDK should _always_ populate at least the `workflowTypeName` and the `patchNames` as 
 applicable for a versioned workflow going forward. 
 
-```protos
+```protobuf
 message OrchestratorCompletedEvent {
     // The name of the specific workflow type executed
     optional workflowTypeName = 1;
