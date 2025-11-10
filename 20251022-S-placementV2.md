@@ -85,6 +85,7 @@ difficult for maintainers to reproduce and nearly impossible to pin down and fix
   * Client-side hashing for actor routing (remains in the sidecar)
   * Placement tables (remain in-memory) -> as per‑type rings (in‑memory), this is _still_ **not** persisted
   * Actor feature requests like actor pubsub, cross namespace actor invocation, etc
+    * Hard stickiness can be done in the future via an rpc on the Scheduler, but is outside the scope of this proposal
 * What alternatives have been considered, and why do they not solve the problem?
   * Keep Placement and Scheduler separate and fix existing Placement issues: 
     * Hand rolled raft, means 2 leaderships to manage
@@ -274,12 +275,12 @@ Improvements:
 - Less CPU: only rebuild rings for changed types.
 - Better concurrency: different types can disseminate in parallel.
 
-Protos (slightly tweaked from original from placement), change `ReportDaprStatus` -> `ReportActorPlacement`
+Protos (slightly tweaked from original from placement), change `ReportDaprStatus` -> `ReportActorTypes`
 ```protobuf
 ...
     // sidecar reports its presence and actor_types;
     // (now) scheduler sends lock/update/unlock orders
-    rpc ReportActorPlacement(stream Host) returns (stream PlacementOrder) {}
+    rpc ReportActorTypes(stream Host) returns (stream PlacementOrder) {}
 ...
 
 message Host {
