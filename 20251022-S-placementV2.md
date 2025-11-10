@@ -187,7 +187,7 @@ Rebuild and disseminate only the actor types whose eligible hosts changed, with 
 Some definitions:
 - Actor Types: the actor types a sidecar hosts. They come from the app/SDK registering actors; daprd’s actor subsystem exposes this, and daprd reports it.
 - Ring: the per actor type consistent hashing structure that maps (actorType, actorID) → host, aka the “consistent hash”.
-- PlacementTable: a namespace snapshot containing a map of actorType → ring plus metadata. In Phase 2 we send partial updates (only the changed types).
+- PlacementTable: a namespace snapshot containing a map of actorType → ring plus metadata. With this proposal, we send partial updates (only the changed types).
 
 **Previously**, Placement would perform a namespace‑scoped full‑table swap, like the following example explains:
 
@@ -270,7 +270,7 @@ fs.IntVar(&opts.ReplicationFactor, "replicationFactor", defaultReplicationFactor
 ```
 
 Improvements:
-- No global pause: only the types in flight are briefly locked, others continue (soft stickiness).
+- No global pause: only the types in flight are briefly locked.
 - Less network: payloads contain only the changed types.
 - Less CPU: only rebuild rings for changed types.
 - Better concurrency: different types can disseminate in parallel.
