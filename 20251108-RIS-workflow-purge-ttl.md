@@ -97,6 +97,13 @@ NAME                            BEGIN  COUNT  LAST TRIGGER
 workflow-retention/my-workflow  96h    0
 ```
 
+A user is able to delete a retention reminder by either manually purging the workflow or deleting the reminder directly.
+
+```bash
+$ dapr workflow purge my-workflow
+$ dapr scheduler delete workflow-retention/my-workflow
+```
+
 #### Go
 
 ```go
