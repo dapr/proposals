@@ -150,7 +150,7 @@ could have:
 - Introduced an activity that performed some reflective analysis of its own service, or
 - Used some sort of Workflow registry to determine that there was a newer type available to swap to.
 
-It could them have scheduled a one-time Dapr JOb with the updated Workflow type name as the payload and ended the current
+It could them have scheduled a one-time Dapr Job with the updated Workflow type name as the payload and ended the current
 workflow to have the job invoke the new Workflow type. However, this introduces a lot of complexity and still doesn't
 address how bugs in live workflows can be fixed between migrations to new types. Since we're trying to simplify distributed
 application development with Dapr, I propose that there's a richer and simpler approach here. I introduce a
@@ -211,13 +211,9 @@ events, but in practice, the SDK should _always_ populate at least the `workflow
 applicable for a versioned workflow going forward. 
 
 ```protos
-message PatchInformation {
-    repeated string patchNames = 1;
-}
-
 message OrchestratorCompletedEvent {
     // The name of the specific workflow type executed
-    optional workflowTypeName = 1;
+    optional string workflowTypeName = 1;
     // The list of patches that newly evaluated as true during the orchestrator execution
     optional PatchInformation patchInformation = 2;
 }
