@@ -213,7 +213,7 @@ applicable for a versioned workflow going forward.
 ```protobuf
 message OrchestratorCompletedEvent {
     // The name of the specific workflow type executed
-    optional workflowTypeName = 1;
+    optional string workflowTypeName = 1;
     // The list of patches that newly evaluated as true during the orchestrator execution
     optional repeated string patchNames = 2;
 }
