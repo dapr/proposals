@@ -172,7 +172,7 @@ provided here to give a high-level overview of the approach.*
 
 Workflows and activities will be registered with the Dapr Workflow SDK as they are today.
 
-Whenever a request come into the application from the Dapr runtime to run work on a specific workflow following a 
+Whenever a request comes into the application from the Dapr runtime to run work on a specific workflow following a 
 `ScheduleNewWorkflowAsync` call, during the same following a `ContinueAsNew` call or even following a 
 `CallChildWorkflowAsync`, a request should come into the SDKs to run that named workflow.
 
@@ -185,13 +185,34 @@ At each boundary invocation except workflow orchestration completion, the SDK sh
 the (potentially updated) version information defined below containing the name of the workflow type executed and the list 
 of named patches followed.
 
+If the patch does not exist in the version list, we should assume that we're being asked to evaluate the patch value
+for the first time. In this case, the following logic should be applied:
+
+A call to `IsPatched`:
+- Returns `true` if the workflow is not presently replaying
+- Returns `true` if the workflow is replaying and the patch name is present in the version information
+- Returns `false` if the workflow is replaying and the patch name is **not** present in the version information
+
 ### Version is specified on orchestration request
 If the version is supplied, the workflow type should be parsed out and the SDK should ignore "latest" evaluations and use
 that type to run the workflow execution. The list of patches should be extracted from the version prototype. At each
-evaluation of the patch, the path should be taken that corresponds to whether the patch exists in the list:
+evaluation of the patch, several checks should happen:
 
-- If the patch exists in the version list, the "new code" route should be taken
-- If the patch does not exist in the version list, the "old code" route should be taken
+- If the patch exists in the version list, the "new code" route should be taken if it has a value of true. Otherwise, the
+"old code" route should be taken if it has a value of false.
+- Is the name of the patch present in an earlier `OchestratorStartedEvent` than the current message? If so, the workflow
+should fail with a `PENDING` status, indicating to the runtime that the code does not match the expected workflow state.
+- If the evaluation has gotten to this point, the workflow should fail with a `PENDING` status because again, the code
+being executed has run this workflow replay to completion before (as we saved the patch map information previously), so 
+if the patch name isn't present, the code has changed and does not match the workflow history.
+
+In case of a `PENDING` status, the runtime should wait to replay the workflow again until a dissemination event has 
+occurred so there's better confidence that all replicas are running updated and consistent logic.
+
+It is still possible that re-running the code after a dissemination event would still fail, especially if the user has
+moved the name of the patch somewhere else in the file between deployments. This is a scenario that should be called out
+in documentation as unsupported and should not be performed by the developer at any time, as it will eventually
+result in a terminal `FAILED` status.
 
 #### Version Specification
 The version object needs to reflect the name (not the canonical name) of the workflow that was that actually invoked
@@ -211,6 +232,12 @@ events, but in practice, the SDK should _always_ populate at least the `workflow
 applicable for a versioned workflow going forward. 
 
 ```protos
+message PatchInformation {
+    // Reflects the list of patches and how they were evaluated in order during this workflow execution for replay-mismatch
+    // detection purposes.
+    map[string]bool patchEvaluations = 1;
+}
+
 message OrchestratorStartedEvent {
     // The name of the specific workflow type executed
     optional string workflowTypeName = 1;
@@ -221,6 +248,7 @@ message OrchestratorStartedEvent {
 
 Any subsequent rehydration of the workflow will require that the SDK read these `OrchestratorStartedEvent` messages from
 the workflow history to build a list of the patches that should evaluate as true for replay purposes.
+
 
 ## Practical Example
 Each of the SDKs should support a lowest-common-denominator approach across the board so that documentation around 
