@@ -85,7 +85,7 @@ deterministic and can be swapped out, although this generally isn't recommended.
 advise against sharing activities across workflows due to the potential for unexpected ramifications.
 - All examples in this workflow are written using C# and are subject to differences across SDK implementation as makes 
 sense in each example given language norms, conventions and available tooling.
-- This proposal assumes a monotonically increasing version number applied to the suffix of the workflow type as one 
+- This proposal assumes a monotonically increasing version number applied to the suffix of the workflow name as one 
 of many potentially configurable versioning schemes. Despite opting to use this for consistency and clarity throughout
 the proposal, I'm certainly not trying to give the impression that it's the only scheme any Workflow SDK could implement.
 - There's no need to ever delete older workflow type versions. Rather, they should be persisted so long as there's any 
