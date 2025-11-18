@@ -601,7 +601,7 @@ Upon installation, a post-install script should be executed that adds the file c
 `.gitignore` file as it should not be versioned since it'll be machine-generated each build.
 
 As part of the build operation, the CLI package, using the `ts-morph` package will parse and analyze the source code in 
-the project looking for classes annotated with `VesrionedWorkflow` and then add each discovered canonical type and
+the project looking for classes annotated with `VersionedWorkflow` and then add each discovered canonical type and
 workflow type names to the `WorkflowRegsitry` file.
 
 From here, the operation would proceed substantially similarly to the .NET package - when the request comes into
