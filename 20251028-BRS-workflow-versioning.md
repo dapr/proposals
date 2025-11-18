@@ -204,14 +204,14 @@ list as this would be unnecessarily redundant and a waste of state resources. Th
 is strictly stored in the workflow history state and doesn't require any change to how the runtime starts orchestration
 requests (via `OrchestratorRequest` messages).
 
-The following modifications should be made on the `OrchestratorCompletedEvent` when the SDK has finished workflow execution
+The following modifications should be made on the `OrchestratorStartedEvent` when the SDK has finished workflow execution
 so it can reflect the name of the workflow type that was executed along with the list of patch identifiers that were 
 newly evaluated as true during the execution. Both properties are marked as optional for compatibility with older
 events, but in practice, the SDK should _always_ populate at least the `workflowTypeName` and the `patchNames` as 
 applicable for a versioned workflow going forward. 
 
 ```protos
-message OrchestratorCompletedEvent {
+message OrchestratorStartedEvent {
     // The name of the specific workflow type executed
     optional string workflowTypeName = 1;
     // The list of patches that newly evaluated as true during the orchestrator execution
@@ -219,7 +219,7 @@ message OrchestratorCompletedEvent {
 }
 ```
 
-Any subsequent rehydration of the workflow will require that the SDK read these `OrchestratorCompletedEvent` messages from
+Any subsequent rehydration of the workflow will require that the SDK read these `OrchestratorStartedEvent` messages from
 the workflow history to build a list of the patches that should evaluate as true for replay purposes.
 
 ## Practical Example
