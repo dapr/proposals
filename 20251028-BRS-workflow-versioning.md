@@ -211,11 +211,15 @@ events, but in practice, the SDK should _always_ populate at least the `workflow
 applicable for a versioned workflow going forward. 
 
 ```protos
+message PatchInformation {
+    repeated string patchNames = 1;
+}
+
 message OrchestratorCompletedEvent {
     // The name of the specific workflow type executed
     optional workflowTypeName = 1;
     // The list of patches that newly evaluated as true during the orchestrator execution
-    optional repeated string patchNames = 2;
+    optional PatchInformation patchInformation = 2;
 }
 ```
 
