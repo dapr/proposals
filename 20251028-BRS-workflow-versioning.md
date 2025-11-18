@@ -632,7 +632,7 @@ Nothing about this approach precludes rendering older versions obsolete after th
 what versioning strategies can be implemented by each SDK nor require strictly numerical distinctions and leaves that 
 to the discretion of the SDK maintainers.
 
-But fundamentally and critically, this appropriate maintains the deterministic nature of the workflows themselves without
+But fundamentally and critically, this appropriately maintains the deterministic nature of the workflows themselves without
 introducing substantial complexity that might limit developer adoption. It doesn't change anything about how the workflows
 themselves execute thereby limiting the need for developers to re-educate themselves to a new process. Instead,
 it leaves us the broadest door possible to facilitate compatibility with existing Dapr Workflow capabilities and to
