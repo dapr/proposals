@@ -1,0 +1,285 @@
+﻿# Workflow Versioning
+- Author: Whit Waldo (@whitwaldo)
+- Status: Proposed
+- Introduced: 4/22/2025
+
+## Overview
+This proposal outlines a method for implementing workflow versioning in Dapr Workflows. While the precise implementation
+details are left to the maintainers of the individual project components (e.g., SDKs, runtime), it shares a proposed
+mechanism for runtime-level functionality and examples for the C# SDK. Other SDK implementation specifics will vary.
+
+## Background
+Several proposals have addressed applying changes to workflows both during execution and at terminal states. Changing
+input values mid-way in a workflow transforms a deterministic workflow into a non-deterministic one by introducing values
+not produced during execution - this is little different than swapping out the code to effect a change on a workflow
+into the same type. It's unsafe and rife with opportunities to introduce errors into the workflow (especially if the 
+newly inserted value doesn't match the signature originally expected). Although the latest version of 
+[this proposal](https://github.com/dapr/proposals/pull/80) requires using a separate Workflow instance ID for re-runs,
+making it deterministic post-change, this functionality might preclude adding other sought-after features like 
+a generalized workflow versioning scheme because of the inconsistency introduced between how different workflow
+versions might operate (actual code changes) and the types that Reruns are created from. 
+
+To clarify this last point, imagine that as part of a re-run, one selects one of the activities mid-way through the 
+workflow. They clone the event log up until that activity and assign this workflow to a new instance ID, but it's still
+based on the same underlying logic from the implementing class following that activity. Now imagine that as part of a
+subsequent deployment, the developer simply swaps out the logic for the implementing workflow class - while this would
+incur a litany of errors for any mid-flight workflow (addressed here), presumably it would run entirely fine with a 
+clean start... except that the activity flow embodied in the cloned re-run workflow is no longer necessarily consistent.
+I propose that this itself should be reason to rethink running derivative workflows in a clear and versioned manner
+as a first-class concept early so we can facilitate such ad-hoc re-runs.
+
+Additionally, I subscribe to the 
+[opinion described here](https://github.com/dapr/proposals/pull/80#discussion_r2034962632) that by simply changing an 
+input to a workflow midway through constitutes a violation of the deterministic contract provided by the workflows, but
+I think this proposal can be married to the re-run concept in a slightly re-imagined way that enables both scenarios 
+while also facilitating a more elaborate patch-based versioning scheme down the road as well.
+
+This [other proposal](https://github.com/dapr/proposals/pull/80) suggests a mechanism for versioning workflows, aiming 
+to facilitate the re-run functionality in the other proposal with the slight modifications described here.
+  
+## Assumptions
+- All actors, workflows and activities register with the sidecar at launch, allowing the runtime to store their metadata in
+a placement table for scheduling future work. It 
+[does not appear](https://github.com/dapr/dapr/blob/80e00a6847f26875a11d6a0eb1de4ac98c423bde/pkg/runtime/wfengine/backends/actors/actors.go#L88)
+that specific type names are stored in this placement table though, meaning that there will be a reliance on the SDKs
+themselves to provide "latest version" much of the implementation necessary to support this change. 
+- `ContinueAsNew` offers the ability to obliterate the previous execution's event log and restarts using the
+same workflow type (today).
+- Versioning operations should only be performed on workflows indicated as completed and ready for purging (or starting
+from scratch).
+`ContinueAsNew` provides a terminal point for our purposes, preserving deterministic integrity by performing a swap to
+a new type version at this point when the new workflow is started.
+- This proposal addresses workflow versioning only, not activity versioning. Activities are not required to be 
+deterministic and can be swapped out, although this isn't recommended. Clear documentation should advise against sharing
+activities across workflows due to potential unexpected ramifications.
+
+## Design
+This proposal suggests using redirects for versioning because they:
+1. Simplify the implementation required for runtime maintainers
+2. Address common versioning needs
+3. Does not preclude future feature flag/patching implementation including re-run support
+
+## What Does Versioning Seek to Solve?
+Imagine having the following infinitely looping workflow as implemented in C#. The workflow receives some object identifier
+and runs it through an activity to check its status and if that returns a `true` result, it performs another action
+to notify the customer. Then it sleeps for 15 minutes and starts again using the `ContinueAsNew` method, providing it
+with the object identifier once again.
+
+```c#
+internal sealed SampleWorkflow : Workflow<string, object?>
+{
+    public override async Task<object?> RunAsync(WorkflowContext context, string id)
+    {
+        var status = await context.CallActivityAsync<bool>(nameof(CheckStatus), id);
+        if (status) 
+        {
+            await context.CallActivityAsync(nameof(NotifyCustomer), id);
+        }
+        
+        await context.CreateTimer(TimeSpan.FromMinutes(15));
+        context.ContinueAsNew(id, false);
+        
+        return null;
+    }
+}
+```
+
+The deterministic nature of these workflows means several things:
+- **One cannot simply swap out this type in a new deployment:** Swapping out the workflow type might fail catastrophically
+if in-flight workflows were unable to complete, leading to developer confusion (as they might assume that a new 
+deployment would mean all previous workflows were cancelled).
+- **Code cannot simply be added to the workflow:** Following the reasoning of the previous point, adding new code violates 
+deterministic integrity, potentially causing unexpected faults.
+
+If the workflow were to have stopped when it was finished, it would have given the developer an opportunity to relaunch 
+it using a different type and enabling a blue/green-like deployment model - that is, deploy a new "green" type until all
+the existing "blue" types are known to have stopped running and have redeployed as "green" types, then delete the "blue"
+type from their next deployment altogether. However, in this very likely scenario, the developer never has an opportunity
+to swap out Workflow types.
+
+Now, had the developer thought ahead about this in a previous version, they had options to implement this themselves.
+They could have:
+- Introduced an activity that performed some reflective analysis of its own service, or
+- Used some sort of Workflow registry to determine that there was a newer type available to swap to.
+
+It could then have scheduled a one-time Dapr Job with the updated Workflow type name as the payload 
+and ended the current workflow to have the job invoke the new Workflow type. However, this introduces quite a lot of 
+complexity. Since we're trying to simplify distributed application development with Dapr, I propose that there's a 
+simpler approach available here that introduces a powerful mechanism to swap between Workflow types with minimal changes 
+by developers to their existing workflows.
+
+## Implementation Details
+I propose that we make relatively small changes to Dapr Workflows APIs externally in the SDKs and their Durable Task
+upstream SDKs.
+
+First, we introduce and document a new convention where workflow types are versioned by appending a numerical value to 
+the end of their names. Higher numerical values represent later versions (e.g. `ExampleWorkflow100` represents a later 
+version of the `ExampleWorkflow10` type). Other strategies might be accommodated by the SDKs themselves, but this is the
+approach I'll use throughout the rest of this document.
+
+Second, I propose that the SDKs reflect an optional `DaprVersioningOptions` configuration value during registration. 
+These options provide the following properties (to start with). If the option is configured (regardless of the following
+options, versioning is enabled on that app:
+- `ExcludeTypes`: A `IReadOnlyList<string>` containing the names of workflow types (optionally absent its version number)
+that should be excluded from version routing and which should always invoke precisely the named type indicated.
+
+Versioning should only happen on terminal and version-configured workflows meaning that only when the runtime is seeking 
+to call back into the workflow SDK to run work on a specific workflow should this versioning routing operation take 
+place. This means that there are only two places in which this should happen today and one in a proposed future:
+1) Following a `ScheduleWorkflowAsync` call or during the same following a `ContinueAsNew` call (but only if 
+`preserveUnprocessedEvents` is set to `false`) as either one will clear the state and all pending events (including 
+external events) ensuring we don't end up with a workflow that does not match its preserved event history.
+2) When the runtime calls into the SDK to invoke a re-run of a workflow against a specific named workflow type.
+
+### SDK Example
+Here's an example of what this might look like during the registration process in C#:
+
+```c#
+var builder = Host.CreateDefaultBuilder(args).ConfigureServices(services => {
+    services.AddDaprWorkflow(options => {
+        options.WithVersioning(); //Adding this enables versioning on this application
+    
+        options.RegisterWorkflow<MyWorkflow1>();
+        options.RegisterWorkflow<MyWorkflow2>(); //This is the newer of the registered workflows
+        
+        // Allows per-type version registration (with different strategies) even if `WithVersioning` isn't specified
+        options.RegisterVersionedWorkflow<MyWorkflow>(new VersionedNumericalSuffixOptions()); 
+    });
+});
+```
+
+## What needs to change?
+### Runtime/Protos
+Only thing required by the runtime is adding the workflow type (with version) to the workflow state metadata and to
+inbound calls to the workflow SDK (to understand if versioning is to be overridden by the specified name or not).
+
+It's proposed that this is a different field than `name` so `name` continues to reflect the base type name absent
+version information.
+
+If a workflow is running and the application crashes, the runtime will need to re-run the workflow using the same 
+instance ID, input and will need to specify this type (including version) to override any versioning on the SDK. 
+Otherwise, if the workflow type were to suddenly swap out here, the re-run would not be deterministic and (should/would)
+fail. 
+
+If the workflow is ever started via `ContinueAsNew` or `ScheduleWorkflowAsync`, this workflow type with the version
+should be forgotten as routing should be (briefly) left to the SDK once again.
+
+### Durable Task SDKs (per-language))
+The runtime needn't know anything about whether versioning has been enabled on a given app as it simply needs to know 
+the name of the workflow type to invoke. Everything downstream of the runtime calling the SDK to invoke this workflow 
+is an implementation detail of the SDK and it will be responsible for routing the request to the appropriate type.
+
+Tracing through how `ContinueAsNew` works in the .NET SDK, it relies on the `TaskOrchestrationContext` implemented
+in the `DurableTask.Core` library. This kicks off a new workflow using the same instance ID and input without any of 
+the corresponding artifacts (in-process tasks, events, etc.). This is primarily done in the upstream durable task 
+clients themselves and not in the runtime as those clients will eventually just call `StartWorkflowAlpha1`.
+
+To that end, `StartWorkflowRequest` allows for a map of `<string, string>` options (under the `options` property) that 
+were originally intended to configure the workflow component and this should be repurposed to receive the target 
+version information, to accommodate type routing in the Durable Task implementation.
+
+### Multi-App Support
+A call made to invoke a Workflow type on a given `AppId` is made to the runtime and when that request is received by the
+app SDK, it will handle versioning precisely as it was configured to do at the app startup in a way entirely invisible
+to the caller. This is because none of the versioning information is made available to the runtime as it exists only 
+in the SDK implementation. 
+
+As such, this proposal is fully compatible with the Multi-App Run proposal and continues to require no runtime changes.
+
+### Re-run Support
+The runtime will call back into a workflow to re-run it.
+
+The SDK would either know that this is a re-run and not a fresh instantiation, nor would the SDK know which specific
+version of the workflow type previously ran.
+
+As such, when a request is received to re-run a particular workflow, the SDK should apply the same versioning 
+configuration it would apply to any other fresh workflow invocation request (e.g., `ScheduleNewWorkflow` or 
+`ContinueAsNew`). It should then run the re-run operation against the latest version of the workflow type, per the 
+configured versioning strategy.
+
+### SDKs
+A change is necessary to the upstream durable task client and worker and how it routes inbound workflow invocations.
+The following decision chart illustrates how this might change (assuming the re-run proposal as well):
+
+![Workflow invocation flowchart](./resources/20250422-BRS-workflow-versioning/VersioningFlowchart.jpg)
+
+Of course, the flowchart could be modified to support multiple versioning strategies and on a per-type basis, but I have
+left those possibilities off the image for brevity.
+
+### Documentation
+The SDK documentation needs an update to provide as many low-level details about versioning as possible. Here, that should
+specifically detail the convention(s) previously articulated, how each of the SDKs accommodate this and how this is 
+implicated across the various other emergent features of Dapr Workflows.
+
+## Developer Experience
+Primarily in response to the [counterproposal](https://github.com/dapr/proposals/pull/92), I wanted to add this section 
+to clarify what I intend the developer experience to be like and to respond to some of the criticisms raised there about
+this proposal. Having a different type for each workflow is cited as the primary drawback for my approach and I want
+to share a few key reasons why I disagree.
+
+### Transparent Versioning
+As a guiding principal, I don't think the workflow itself should direct versioning at all. If a newer type of a workflow
+is available in the application, the SDK should source and utilize it without needing developer intervention. There should
+be no opportunity for "magical strings" or the cognitive burden of the developer trying to revisit a workflow a few weeks
+later trying to figure out how their workflow works and thinking through some complex versioning scheme.
+
+My proposal makes this really simple - by default (though this can certainly be a configurable convention), when you 
+want to create a new version of a workflow, create a new type and increment the numerical suffix. During app startup,
+notify the workflow registration that you want to opt into versionining and that's it. How it happens is left as an exercise
+to the interplay between the SDK and the runtime and there is no complex branching logic required.
+
+### Avoid Mandating Subject-matter Expertise
+Our documentation discusses the Dapr Workflow implementation atop the event source log and the consequential importance
+of putting deterministic logc in the workflows and non-deterministic logic in activities because of the replay boundary,
+but the concept doesn't require that developers be subject-matter experts on the implications of it because our API
+largely insulates them from any of the details. My approach continues in this vein - by adopting the philosophy of 
+"when you've deployed a workflow to production, leave that version alone", it's implied that there's something about the
+workflow itself that should not be messed with and the transition to newer versions is magically handled.
+
+Introducing in-file workflow versioning will require that developers suddenly grow dramatically more familiar about the
+deterministic implications of writing these workflows than they need be today. A rich understanding of the implications of
+changing how inputs are passed into activities for the replay capability would be essential to preventing foreseeable
+bugs as developers versioned their workflows. The counterproposal glosses over this by suggesting that the important 
+boundary is only in the invocation of the other activities and child workflows, and that's only part of the picture.
+
+### Simplified Testing
+Testing plays a significant role in the development of modern applications. With my proposal, one can conceivably mock
+the various elements of the workflow SDK and trivially validate the end-to-end behavior for each version of the workflow
+just as they would any other method. 
+
+Writing tests for what will increasingly evolve into multiple sets of switch statements makes testing increasingly 
+complicated and risks subtle bugs arising from untested edge cases.
+
+### Type-Validated Explicitness
+By using distinct types, (and in some languages more than others), we can leverage the compiler to catch common errors
+at build time. We don't have to wait until runtime to discover only after runtime failures that some specified version 
+isn't actually available in the app (potentially introducing migration bugs that require still more accommodating version 
+branches).
+
+### Simplified Observability
+The upcoming workflow tools on the CLI will provide much more transparent insight into what workflows and activities have
+run in any given execution. Using my proposal, the versions can be derived from the value saved in the workflow metadata
+and trivially noted in the execution history. Relying exclusively on runtime logic in the workflows themselves will give 
+no information to the developer about what version of any given workflow was actually running at any given point.
+
+## Benefits
+In short, I believe my proposal is much simpler for a developer to consume and utilize than what's covered in the
+counterproposal. Opt into versioning during app startup and when you want to create a new version of a workflow, create
+a duplicate of the existing type, name it per the configured convention and author it as you will.
+
+All the routing complexities are fully managed by the SDK and the runtime and the developer needn't be concerned with
+any of the many possible pitfalls that might surround an in-file editing approach. Documentation around the concept
+wouldn't necessitate more than a paragraph and some examples and the idea would trivially slot into the existing
+Dapr Workflow concept.
+
+The implementation here is simple and sets up a starting point for a more elaborate versioning approach using patching
+and/or feature flags. I believe it also enables Josh's proposal for workflow re-runs atop this routed solution
+to solve the underlying workflow type mismatch possibility inherent to his proposal. Finally, it also provides a solution
+to a frequently raised issue by the community in a straightforward and simple way (from the developers' perspective).
+
+It maintains the deterministic nature of the workflows themselves and doesn't introduce any elaborate routing rules or 
+other complexity that might lead to this idea being underutilized in practice. Most of all, it doesn't change anything
+about the fundamental nature of how the workflows themselves execute as a whole. It instead leaves us the broadest door 
+possible to effectuating a point-in-time re-execution approach that builds atop this behavior. Finally, it yields a 
+consistent workflow state while benefiting from the registry of available types already registered via the Workflow 
+SDKs.
