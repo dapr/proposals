@@ -81,6 +81,24 @@ _Backwards-**compatible** changes_
 * May be proposed to _any_ API
 * Proposed changes to both the HTTP and gRPC API must be included
 
+### Progression of API lifecycle to Stable
+
+Currently for HTTP API, the alpha API has the path `v1.0-alpha1` and the beta API must have the path `v1.0-beta1` and the stable APIs must have the form `v1.0`. Similarly for gRPC, the alpha and beta APIs must have the suffix `Alpha1` or `Beta1` added to the gRPC methods.
+SDKs implementing the API before the stable release use the above mentioned paths/methods for HTTP and gRPC respectively. Once the API is promoted to stable, the SDKs must be updated to use the stable paths/methods as soon as possible.
+
+#### Compatibility
+
+For `alpha` to `beta` or `alpha` to `stable` or `beta` to `stable` progressions, the following rules must be followed:
+- Once an API has progressed to "higher" stage be it `beta` or `stable` from `alpha`, the prior API endpoints (HTTP/gRPC) must be still supported together with the newer stage (`beta` or `stable`) API endpoints in Dapr runtime for atleast 1 release to give SDKs enough time to update to the new API endpoints. Functionality wise, there may be breaking changes between a API stage transitions, but both the prior API endpoint and the newer endpoint must point to the same same functionality once it has graduated to a particular stage.
+
+> Note: The components themselves might have breaking changes, that will not affect the API-SDK compatibility.
+
+Example Scenario:
+Consider v3.0 of JS SDK supporting the Config API in Alpha stage and Dapr runtime v1.10. The Config API is promoted to Stable in v1.11 of the runtime. In this case both path `/v1.0-alpha1`, method`Alpha1` and path `/v1.0`, ,method without suffix must be supported by the Dapr runtime.
+
+Then the SDK can be updated independent of the runtime i.e. v3.0 version of JS SDK will still continue to work with the v1.11 runtime Config API.
+
+> Note: This guidance is specifically for Dapr runtime API-SDK compatibility. SDKs may have their own way of exposing/differentiating between Alpha and Stable APIs.
 
 ## Requirements for Building Block changes
 
@@ -102,10 +120,7 @@ Finally on addition of a new API, there may be addition of the capability to eit
   - Implement the suite of conformance tests as part of the existing suite of tests for the building block
 - Ensure successful execution of existing conformance and certification tests for any modified components
 
-
-
 ## Progression of an API/Building block
-
 ### Alpha to Beta
 
 In addition to the requirements that are required of any Alpha API, the following requirements must be met so that the API can graduate to Beta. For an API to be promoted to Beta, it must exist for at least one release cycle after its initial addition as Alpha. (i.e something added in 1.10 could become  Beta in 1.12, having been stabilized through 1.11)
@@ -131,6 +146,7 @@ For **building blocks** to progress, the following criteria are required:
 
 In addition to the requirements for a Beta API, the following requirements must be met so that the API can graduate to Stable. Similar to the previous phase change, this API must have been in the Beta phase for at least one full release _without any breaking changes_. In addition, the following criteria apply:
 
+* Change API version based on the [API version progression guidelines](#progression-of-api-lifecycle-to-stable)
 * E2E scenarios must be well defined and comprehensive
 * Performance tests must be added(in case a new building block does not have performance tests in the Alpha/Beta stage)/updated
 * Expected performance data must be added to documentation
