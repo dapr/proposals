@@ -306,7 +306,7 @@ type MCPCatalogOwner struct {
 #### Built-in workflow orchestration flow
 
 ```
-agent_workflow (DurableAgent)
+<agent_name>_agent_workflow (DurableAgent)
   └─ ctx.call_child_workflow("ListTools", {mcp: "github-mcp"})
        └─ [daprd built-in ListTools orchestration]
             └─ ctx.CallActivity("list-tools", input)
@@ -315,7 +315,7 @@ agent_workflow (DurableAgent)
                       ├─ dials MCP server via go-sdk
                       └─ returns []mcp.Tool as JSON
 
-agent_workflow
+<agent_name>_agent_workflow
   └─ ctx.call_child_workflow("CallTool", {mcp: "github-mcp", tool: "search_code", arguments: {...}})
        └─ [daprd built-in CallTool orchestration]
             └─ ctx.CallActivity("call-tool", input)
