@@ -22,9 +22,9 @@ This proposal makes Dapr the first platform to provide **enterprise-grade, durab
 
 1. A new first-class Dapr resource `MCPServer` that lets operators declare MCP server connection details as Kubernetes CRDs or standalone YAML files. daprd discovers and loads these at startup and watches for updates via the Operator.
 
-2. Built-in `ListTools` and `CallTool` workflow orchestrations registered inside daprd's workflow engine. These execute MCP protocol calls as durable activities, provide replay-safe checkpointing for long-running tools, and are architected to support elicitation and sampling suspensions in a follow-on phase.
+2. Built-in `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflow orchestrations registered inside daprd's workflow engine. These execute MCP protocol calls as durable activities, provide replay-safe checkpointing for long-running tools, and are architected to support elicitation and sampling suspensions in a follow-on phase.
 
-3. A `DaprMCPWorkflowClient` in dapr-agents that wraps the built-in workflows as `WorkflowContextInjectedTool` instances, giving `DurableAgent` workflows access to MCP servers via `ctx.call_child_workflow("CallTool", ...)` — the same pattern used for agent to agent calls, or agents as tools usage today.
+3. A `DaprMCPWorkflowClient` in dapr-agents that wraps the built-in workflows as `WorkflowContextInjectedTool` instances, giving `DurableAgent` workflows access to MCP servers via `ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", ...)` — the same pattern used for agent to agent calls, or agents as tools usage today.
 
 ---
 
@@ -44,7 +44,7 @@ The Model Context Protocol (MCP) has rapidly become the standard interface for e
 
 For today's common case (fast, idempotent tool calls), an activity with a resiliency policy is technically sufficient. Workflow is the right choice for three reasons:
 
-1. **API stability**: If `CallTool` is implemented as `ctx.call_activity(...)` today and later needs to support elicitation (which requires `wait_for_external_event`), the call site in every agent must change to `ctx.call_child_workflow(...)`. Implementing as a workflow from the start means the call site — and every agent's code — never changes as the implementation gains capabilities.
+1. **API stability**: If `dapr.mcp.<mcpserver-name>.CallTool` is implemented as `ctx.call_activity(...)` today and later needs to support elicitation (which requires `wait_for_external_event`), the call site in every agent must change to `ctx.call_child_workflow(...)`. Implementing as a workflow from the start means the call site — and every agent's code — never changes as the implementation gains capabilities.
 
 2. **Long-running tools**: MCP tools that execute database queries, code runners, or external jobs may run for minutes. If daprd restarts in the middle of this, the MCP tool execution retries from scratch. A workflow activity within a child workflow checkpoints its progress; if daprd restarts, execution resumes at the last completed step.
 
@@ -71,12 +71,13 @@ or in this [release note agent](https://github.com/sicoyle/release-note-agent).
 ### In scope
 
 - `MCPServer` CRD type with spec fields defined in yaml examples below
-- Operator gRPC extensions: `ListMCPServers`, `GetMCPServer`, `UpdateMCPServer`
+- Operator gRPC extensions: `ListMCPServers`, `GetMCPServer`, `WatchMCPServer` (streaming `MCPServerUpdate` events)
 - Kubernetes and standalone (disk) loaders for `MCPServer`
 - Secret processing for headers and env vars via existing `auth.secretStore`
 - Runtime loading in `loadMCPServers()` during daprd startup, with hot-reload via Operator watch
-- Built-in `ListTools` and `CallTool` workflows defined and registered with daprd's wfengine using the `modelcontextprotocol/go-sdk`
+- Built-in `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflows defined and registered with daprd's wfengine using the `modelcontextprotocol/go-sdk`
     - This is a fundamental change that brings the idea of a Managed Workflow in essence into the runtime.
+- Built-in MCP authorization / per-tool RBAC — `middleware.beforeCall` / `middleware.afterCall` workflow hooks on `MCPServerSpec` provide extensibility points for custom authz workflows — user-registered workflows invoked before and after each `dapr.mcp.<mcpserver-name>.CallTool` (and `dapr.mcp.<mcpserver-name>.ListTools`) execution; `beforeCall` errors abort the call, `afterCall` errors are logged and the result is still returned (the MCP call already ran)
 - Transport support: `streamable_http`, `sse`, `stdio`
 
 > NOTE: I did choose the [official modelcontextprotocol go-sdk pkg](https://github.com/modelcontextprotocol/go-sdk); however, there is the [Mark3Labs alternative](https://github.com/mark3labs/mcp-go) which is more "popular" and established.
@@ -87,7 +88,8 @@ or in this [release note agent](https://github.com/sicoyle/release-note-agent).
 - Sampling (`sampling/createMessage`) callback handling — same
 - MCP resource subscriptions and prompt listing (tools only in v1) - https://modelcontextprotocol.io/docs/learn/server-concepts#core-server-features
 - Cross-namespace MCPServer access
-- MCP authorization / per-tool RBAC
+- `endpoint.appID` — routing to a Dapr-managed MCP server by app ID rather than raw URL; deferred due to URL construction complexity across Kubernetes and standalone modes
+- `endpoint.httpEndpointName` — referencing an existing `HTTPEndpoint` resource as the MCP server's connection details; deferred due to cross-resource dependency handling and header merge semantics
 
 ### Alternatives considered
 
@@ -100,20 +102,20 @@ However:
 
 **Alternative 2: External proxy workflow appid.**
 
-An external appid to potentially host the ListTools/CallTool workflows avoids embedding MCP in daprd and provides independent scaling. 
+An external appid to potentially host the dapr.mcp.<mcpserver-name>.ListTools/dapr.mcp.<mcpserver-name>.CallTool workflows avoids embedding MCP in daprd and provides independent scaling. 
 Disadvantages:
 - Requires an additional Kubernetes deployment if using Kubernetes mode
 - Access policy configuration between two appids
 
 Implementation within daprd runtime is simpler operationally and durability is transparent within the sidecar.
 
-**Alternative 3: Not wrapping ListTools and CallTool within a workflow**
+**Alternative 3: Not wrapping dapr.mcp.<mcpserver-name>.ListTools and dapr.mcp.<mcpserver-name>.CallTool within a workflow**
 
 Simpler to implement and sufficient for the common case.
 However, ruled out because:
 - it creates an API cliff when elicitation/sampling support is needed
 - it cannot model mid-call suspension
-- it provides no checkpointing for long-running tools if the app where to go down mid MCP tool execution
+- it provides no checkpointing for long-running tools if the app were to go down mid MCP tool execution
 
 ### Trade-offs
 
@@ -128,7 +130,7 @@ They are also already [v1.0](https://pkg.go.dev/github.com/modelcontextprotocol/
 Stdio requires spawning a subprocess.
 This is flagged as a "local dev / testing" transport and for non-Kubernetes mode.
 Production use is expected to use `streamable_http` or `sse`.
-A error will be used when stdio is used in Kubernetes mode.
+An error will be used when stdio is used in Kubernetes mode.
 This will require CLI work to support.
 
 ---
@@ -151,12 +153,6 @@ metadata:
     env: prod
     team: fin-platform
 spec:
-  # appID: if set, routes to a Dapr app via service invocation rather than a raw URL.
-  # The sidecar constructs the endpoint automatically:
-  #   http://<appID>.<namespace>.svc.cluster.local:3500/v1.0/invoke/<appID>/method/mcp
-  # Omit appID and use endpoint.url for external (non-Dapr) MCP servers.
-  appID: payments-mcp
-
   # catalog: UI-facing governance metadata that is purely informational for end users.
   catalog:
     displayName: "Payments MCP Server"
@@ -181,19 +177,38 @@ spec:
     # protocolVersion pins the MCP spec version the server implements.
     # Used by the go-sdk client to negotiate correctly.
     protocolVersion: "2026-03-26"
+    # target is a one-of: only url is supported in v1.
+    # Future iterations add appID and httpEndpointName as alternatives.
+    target:
+      url: http://payments-mcp.prod.svc.cluster.local/sse
 
+  # Auth — pick one option; comment out the others.
+
+  # Option 1: OAuth2 client credentials (production; secret resolved via auth.secretStore)
   auth:
-  # Option 1 using OAuth2:
+    secretStore: kubernetes
     oauth2:
       issuer: https://auth.company.com
       audience: mcp://payments
       scopes:
         - payments.read
         - payments.refund
-      secretRef:
+      secretKeyRef:
         name: payments-mcp-oauth
         key: clientSecret
-  # Option 2 env vars checked if Oauth2 fields not found.
+
+  # Option 2: SPIFFE workload identity — Sentry issues an SVID; no secret needed.
+  # auth:
+  #   spiffe:
+  #     jwt:
+  #       header: Authorization
+  #       prefix: "Bearer "
+  #       audience: mcp://payments
+
+  # Option 3: env var injection — local dev or stdio; no secret store required.
+  # headers:
+  #   - name: Authorization
+  #     envRef: PAYMENTS_MCP_TOKEN
 
 scopes:
   - my-agent-app
@@ -210,13 +225,18 @@ metadata:
 spec:
   endpoint:
     transport: streamable_http
-    url: https://api.githubcopilot.com/mcp/
     protocolVersion: "2025-03-XX"
+    target:
+      url: https://api.githubcopilot.com/mcp/
+  # Headers are resolved via auth.secretStore (defaults to kubernetes).
+  # Bearer tokens are expressed as a plain Authorization header — no special bearer field.
   headers:
     - name: Authorization
-      secretRef:
+      secretKeyRef:
         name: github-token
         key: token
+  auth:
+    secretStore: kubernetes
 scopes:
   - my-agent-app
 ```
@@ -239,6 +259,45 @@ spec:
         value: EXAMPLE
 ```
 
+MCPServer with `beforeCall` authz and `afterCall` audit hooks:
+
+```yaml
+apiVersion: dapr.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: payments-mcp-guarded
+  namespace: prod
+spec:
+  endpoint:
+    transport: streamable_http
+    target:
+      url: https://payments.internal/mcp
+  middleware:
+    # beforeCall: invoked before every dapr.mcp.<mcpserver-name>.ListTools and dapr.mcp.<mcpserver-name>.CallTool.
+    # If this workflow returns an error, the tool call is aborted.
+    # Example use: verify the calling agent's identity and check per-tool permissions.
+    beforeCall: payments-authz-workflow
+    # afterCall: invoked after every dapr.mcp.<mcpserver-name>.ListTools and dapr.mcp.<mcpserver-name>.CallTool, regardless of result.
+    # Errors from this workflow are logged but do NOT affect what is returned to the caller —
+    # the MCP call has already completed and any side effects have occurred.
+    # Example use: write an immutable audit record of tool invocations and results.
+    afterCall: payments-audit-workflow
+scopes:
+  - my-agent-app
+```
+
+The `beforeCall` workflow receives:
+```json
+{ "mcpServer": "payments-mcp-guarded", "tool": "refund_payment", "arguments": { "amount": 50 } }
+```
+Return any non-nil error to abort; return nil to allow the call to proceed.
+
+The `afterCall` workflow receives:
+```json
+{ "mcpServer": "payments-mcp-guarded", "tool": "refund_payment", "arguments": { "amount": 50 }, "result": { ... } }
+```
+The return value is ignored. Internal errors (e.g. audit store unavailable) should be handled within the workflow itself.
+
 #### Go types (`pkg/apis/mcp/v1alpha1/types.go`)
 
 ```go
@@ -251,21 +310,35 @@ type MCPServer struct {
 }
 
 type MCPServerSpec struct {
-    // AppID routes to a Dapr app via service invocation.
-    // Mutually exclusive with endpoint.url.
-    AppID    string            `json:"appID,omitempty"`
-    Catalog  *MCPServerCatalog `json:"catalog,omitempty"`
-    Endpoint MCPEndpoint       `json:"endpoint"`
-    Auth     MCPAuth           `json:"auth,omitempty"`
+    Catalog  *MCPServerCatalog      `json:"catalog,omitempty"`
+    Endpoint MCPEndpoint            `json:"endpoint"`
+    // Headers are injected on all outbound HTTP transport requests to the MCP server:
+    // once per SSE connection handshake, or per-request for streamable_http.
+    // Not applicable when endpoint.transport is "stdio".
+    // Each entry follows the same NameValuePair contract used by HTTPEndpoint:
+    // plain value, secretKeyRef, or envRef. Secret resolution uses auth.secretStore.
+    Headers  []common.NameValuePair `json:"headers,omitempty"`
+    Auth     MCPAuth                `json:"auth,omitempty"`
+    // Middleware defines optional workflow hooks invoked around each tool call.
+    Middleware *MCPMiddleware        `json:"middleware,omitempty"`
     // Stdio is only valid when endpoint.transport is "stdio".
-    Stdio    *MCPStdioSpec     `json:"stdio,omitempty"`
+    Stdio    *MCPStdioSpec          `json:"stdio,omitempty"`
 }
 
 type MCPEndpoint struct {
-    Transport       string `json:"transport"`
-    URL             string `json:"url,omitempty"`
-    ProtocolVersion string `json:"protocolVersion,omitempty"`
-    Timeout         string `json:"timeout,omitempty"`
+    Transport       string            `json:"transport"`
+    // Target is a one-of identifying the MCP server.
+    // Only url is supported in v1. Future iterations add appID and httpEndpointName.
+    Target          MCPEndpointTarget `json:"target"`
+    ProtocolVersion string            `json:"protocolVersion,omitempty"`
+    Timeout         string            `json:"timeout,omitempty"`
+}
+
+// MCPEndpointTarget is a one-of: set exactly one field.
+type MCPEndpointTarget struct {
+    // URL is the raw endpoint URL of the MCP server.
+    URL string `json:"url,omitempty"`
+    // AppID and HTTPEndpointName are reserved for future iterations.
 }
 
 type MCPStdioSpec struct {
@@ -274,20 +347,48 @@ type MCPStdioSpec struct {
     Env     []common.NameValuePair `json:"env,omitempty"`
 }
 
+// MCPAuth configures authentication for the MCP server connection.
+// OAuth2 and SPIFFE are only meaningful when endpoint.target.url is set.
+// When target.appID is used, Dapr handles mTLS/SPIFFE automatically.
+// When target.httpEndpointName is used, auth is delegated to that resource.
 type MCPAuth struct {
-    OAuth2    *MCPOAuth2    `json:"oauth2,omitempty"`
+    // SecretStore names the Dapr secret store used to resolve secretKeyRef entries
+    // (in spec.headers and OAuth2 credentials). Defaults to "kubernetes".
+    SecretStore string       `json:"secretStore,omitempty"`
+    OAuth2      *MCPOAuth2   `json:"oauth2,omitempty"`
+    SPIFFE      *SPIFFESpec  `json:"spiffe,omitempty"`
 }
 
 type MCPOAuth2 struct {
-    Issuer   string   `json:"issuer"`
-    Audience string   `json:"audience,omitempty"`
-    Scopes   []string `json:"scopes,omitempty"`
-    SecretRef *MCPSecretRef `json:"secretRef,omitempty"`
+    Issuer       string               `json:"issuer"`
+    Audience     string               `json:"audience,omitempty"`
+    Scopes       []string             `json:"scopes,omitempty"`
+    SecretKeyRef *common.SecretKeyRef `json:"secretKeyRef,omitempty"`
 }
 
-type MCPSecretRef struct {
-    Name string `json:"name"`
-    Key  string `json:"key"`
+type SPIFFESpec struct {
+    //+optional
+    JWT *SPIFFEJWTSpec `json:"jwt,omitempty"`
+}
+
+type SPIFFEJWTSpec struct {
+    Header   string  `json:"header" validate:"required"`
+    Audience string  `json:"audience" validate:"required"`
+    //+optional
+    Prefix   *string `json:"prefix,omitempty"`
+}
+
+type MCPMiddleware struct {
+    // BeforeCall names a user-registered workflow to invoke before each dapr.mcp.<mcpserver-name>.ListTools/CallTool execution.
+    // Receives the MCPServer name, tool name (empty for ListTools), and arguments as input.
+    // If this workflow returns an error, the tool call is aborted and the error is returned to the caller.
+    BeforeCall string `json:"beforeCall,omitempty"`
+    // AfterCall names a user-registered workflow to invoke after each dapr.mcp.<mcpserver-name>.ListTools/CallTool execution.
+    // Receives the MCPServer name, tool name, arguments, and result as input.
+    // Errors from this workflow are logged but do not affect the result returned to the caller —
+    // the MCP call has already completed. AfterCall workflows intended for audit use should
+    // handle their own internal errors rather than propagating them.
+    AfterCall  string `json:"afterCall,omitempty"`
 }
 
 type MCPServerCatalog struct {
@@ -303,12 +404,32 @@ type MCPCatalogOwner struct {
     Contact string `json:"contact,omitempty"`
 }
 ```
+#### Workflow runtime activation and routing
+
+Today, daprd only starts the workflow runtime (wfengine) when an application connects as a workflow client. With this proposal, the workflow runtime must also start when any `MCPServer` manifest is present — even when no user application has connected — because the built-in MCP worker registers its own orchestrations and activities inside daprd.
+
+This requires two related changes within the sidecar:
+
+1. **Activation condition**: `loadMCPServers()` must trigger wfengine startup when MCPServer CRDs are found, in addition to the existing trigger from a workflow client connecting.
+
+2. **Workflow router**: Within daprd, there are two workflow clients: the internal one (used by daprd to schedule built-in MCP orchestrations) and the external one (the proxy for user app workflow requests arriving via the Dapr API). A router on the sidecar-side client must dispatch workflow names prefixed `dapr.mcp.*` to the built-in MCP worker, while all other workflow names continue to route to the user app's registered worker. Without this router, a `call_child_workflow("dapr.mcp.<name>.ListTools", ...)` issued from a user workflow would be treated as an unknown type.
+
+#### Child workflow instance IDs
+
+Child workflow instance IDs for the built-in `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` orchestrations are **auto-generated by the runtime**. When a caller does not supply an explicit `instanceID`, Durabletask generates a deterministic ID of the form `<parent-instance-id>:<task-sequence-number>`. This enables:
+
+- **No collision**: sequence numbers are monotonically increasing within a parent instance.
+- **Replay determinism**: on re-execution the same parent ID + same sequence number produces the same child ID, so workflow history remains consistent. A timestamp-based ID would differ on replay and corrupt the history.
+- **Natural correlation**: the child ID encodes the parent, so tool call spans are trivially traceable back to the agent workflow that issued them.
+
+Callers (SDK or user workflows) must not pass a caller-supplied timestamp or random value as the instance ID for these child workflows.
+
 #### Built-in workflow orchestration flow
 
 ```
 <agent_name>_agent_workflow (DurableAgent)
-  └─ ctx.call_child_workflow("ListTools", {mcp: "github-mcp"})
-       └─ [daprd built-in ListTools orchestration]
+  └─ ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.ListTools", {mcp: "github-mcp"})
+       └─ [daprd built-in dapr.mcp.<mcpserver-name>.ListTools orchestration]
             └─ ctx.CallActivity("list-tools", input)
                  └─ [daprd built-in activity]
                       ├─ looks up MCPServer CRD from CompStore
@@ -316,13 +437,19 @@ type MCPCatalogOwner struct {
                       └─ returns []mcp.Tool as JSON
 
 <agent_name>_agent_workflow
-  └─ ctx.call_child_workflow("CallTool", {mcp: "github-mcp", tool: "search_code", arguments: {...}})
-       └─ [daprd built-in CallTool orchestration]
-            └─ ctx.CallActivity("call-tool", input)
-                 └─ [daprd built-in activity]
-                      ├─ looks up MCPServer CRD from CompStore
-                      ├─ dials MCP server, calls tool
-                      └─ returns tool result
+  └─ ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", {mcp: "github-mcp", tool: "search_code", arguments: {...}})
+       └─ [daprd built-in dapr.mcp.<mcpserver-name>.CallTool orchestration]
+            ├─ (if dapr.mcp.<mcpserver-name>.BeforeCall set)
+            │    ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.BeforeCall, {mcpServer, tool, arguments})
+            │    → error returned? abort, propagate error to caller
+            ├─ ctx.CallActivity("call-tool", input)
+            │    └─ [daprd built-in activity]
+            │         ├─ looks up MCPServer CRD from CompStore
+            │         ├─ dials MCP server, calls tool
+            │         └─ returns tool result
+            └─ (if dapr.mcp.<mcpserver-name>.AfterCall set)
+                 ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.AfterCall, {mcpServer, tool, arguments, result})
+                 → error logged, result still returned to caller
 ```
 
 #### dapr-agents usage
@@ -332,12 +459,12 @@ from dapr_agents.tool.mcp.dapr_workflow_client import DaprMCPWorkflowClient
 
 # At agent startup (before workflow execution):
 client = DaprMCPWorkflowClient()
-await client.connect("github-mcp")   # invokes ListTools workflow, caches schemas
+await client.connect("github-mcp")   # invokes dapr.mcp.<mcpserver-name>.ListTools workflow, caches schemas
 tools = client.get_all_tools()       # returns WorkflowContextInjectedTool instances
 
 agent = DurableAgent(
     name="my_agent",
-    tools=tools,   # each tool calls CallTool workflow when invoked by LLM under the hood
+    tools=tools,   # each tool calls dapr.mcp.<mcpserver-name>.CallTool workflow when invoked by LLM under the hood
     llm=DaprChatClient(component_name="openai"),
 )
 ```
@@ -348,33 +475,33 @@ The `DurableAgent`'s existing dispatch loop handles `WorkflowContextInjectedTool
 # durable.py — no changes needed
 if isinstance(tool_obj, WorkflowContextInjectedTool):
     workflow_tasks.append(tool_obj(ctx=ctx, _source_agent=self.name, **args))
-    # → internally calls ctx.call_child_workflow("CallTool", {...})
+    # → internally calls ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", {...})
 ```
 
 #### Architecture diagram
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  User app (dapr-agents DurableAgent)                    │
-│                                                         │
-│  <agent_name>_agent_workflow                            │
-│    └─ call_child_workflow("ListTools", {mcp: ...})      │
-│    └─ call_child_workflow("CallTool",  {mcp: ...})      │
-└────────────────────┬────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────---------------------┐
+│  User app (dapr-agents DurableAgent)                                         │
+│                                                                              │
+│  <agent_name>_agent_workflow                                                 │
+│    └─ call_child_workflow("dapr.mcp.<mcpserver-name>.ListTools", {mcp: ...}) │
+│    └─ call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool",  {mcp: ...}) │
+└────────────────────┬────────────────────────────────────---------------------┘
                      │ Dapr Workflow API
-┌────────────────────▼────────────────────────────────────┐
-│  daprd sidecar                                          │
-│                                                         │
-│  ┌─ wfengine (actor backend) ─────────────────────┐     │
-│  │  Built-in MCP worker                           │     │
-│  │    ListTools workflow orchestration            │     │
-│  │      └─ dapr-mcp-list-tools activity           │     │
-│  │    CallTool workflow orchestration             |     │
-│  │      └─ dapr-mcp-call-tool activity            │     │
-│  └────────────────────────────────────────────────┘     │
-│                                                         │
-│  CompStore: MCPServer CRDs (loaded from Operator/disk)  │
-└────────────┬────────────────────────────────────────────┘
+┌────────────────────▼────────────────────────────────────---------┐
+│  daprd sidecar                                                   │
+│                                                                  │
+│  ┌─ wfengine (actor backend) ─────────────────────┐              │
+│  │  Built-in MCP worker                           │              │
+│  │    dapr.mcp.<mcpserver-name>.ListTools workflow orchestration │
+│  │      └─ dapr-mcp-list-tools activity           │              │
+│  │    dapr.mcp.<mcpserver-name>.CallTool workflow orchestration  |
+│  │      └─ dapr-mcp-call-tool activity            │              │
+│  └────────────────────────────────────────────────┘              │
+│                                                                  │
+│  CompStore: MCPServer CRDs (loaded from Operator/disk)           │
+└────────────┬────────────────────────────────────────────---------┘
              │ MCP protocol (streamable_http / SSE / stdio)
     ┌────────▼──────┐  ┌──────────────┐  ┌──────────────┐
     │ GitHub MCP    │  │ Dapr MCP     │  │ Custom MCP   │
@@ -386,7 +513,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 
 **Alpha (initial release):**
 - `MCPServer` resource gated behind a feature flag `MCPServerResource` in Dapr Configuration
-- Built-in `ListTools` and `CallTool` workflows available when flag is enabled
+- Built-in `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflows available when flag is enabled
 - All three transports supported but stdio in Kubernetes mode errors
 - Dapr CLI to error if using slim mode as workflows are needed for this resource
 - No elicitation or sampling support yet
@@ -396,9 +523,11 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 - Feature flag removed; MCPServer enabled by default
 - Elicitation callback support added (workflow `wait_for_external_event` pattern)
 - Sampling support added
+- `endpoint.appID` — route to a Dapr-managed MCP server by app ID; sidecar constructs the service invocation URL automatically
+- `endpoint.httpEndpointName` — reference an existing `HTTPEndpoint` resource by name; MCP worker reads its base URL and resolved headers from the CompStore, eliminating duplication of auth/header config
 
 **Compatibility:**
-- The `ListTools` and `CallTool` workflow names are stable API. Agents coded against them will not need changes as internal implementation evolves (e.g., elicitation support is added inside the workflow without changing the input/output contract).
+- The `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflow names are stable API. Agents coded against them will not need changes as internal implementation evolves (e.g., elicitation support is added inside the workflow without changing the input/output contract).
 - `MCPServer` CRD spec fields are additive; existing fields will not be removed in minor versions.
 - The existing `MCPClient` in dapr-agents will be removed. `DaprMCPWorkflowClient` is recommended approach for durable workflows and MCP interactions.
 
@@ -409,7 +538,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 - If daprd restarts mid tool call, the activity retries automatically since it's within a workflow
 - `MCPServer` CRDs are hot-reloaded when updated in Kubernetes (no sidecar restart required)
 - Secret store references in `MCPServer` resolve correctly via the referenced secret store
-- `ListTools` and `CallTool` workflow design agreed upon
+- `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflow design agreed upon
 
 **Compatibility:**
 - No changes required to existing Dapr resources
@@ -427,18 +556,20 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 - [ ] Processor: `pkg/runtime/processor/mcp.go` — `AddPendingMCPServer`, `processMCPServers`; extend `processor.go` with channel and goroutine
 - [ ] Operator API: `pkg/operator/api/mcp.go` — List, Get, streaming Watch; wire informer in `api.go`
 - [ ] Runtime: `loadMCPServers()`, `flushOutstandingMCPServers()`, hot-reload watch subscription in `pkg/runtime/runtime.go`
-- [ ] Built-in MCP worker: `pkg/runtime/mcp/worker.go`, `transport.go`, `types.go` — `ListTools` + `CallTool` orchestrations and activities using `modelcontextprotocol/go-sdk`
+- [ ] Built-in MCP worker: `pkg/runtime/mcp/worker.go`, `transport.go`, `types.go` — `dapr.mcp.<mcpserver-name>.ListTools` + `dapr.mcp.<mcpserver-name>.CallTool` orchestrations and activities using `modelcontextprotocol/go-sdk`; include `beforeCall`/`afterCall` middleware hook invocations in both orchestrations with the abort-on-error / log-and-continue semantics described above
+- [ ] WFEngine activation: extend wfengine startup condition so that the presence of any loaded MCPServer manifest also triggers the workflow runtime (in addition to the existing workflow-client-connected trigger) — `pkg/runtime/runtime.go`
+- [ ] Workflow router: add a router on the sidecar-side workflow client that dispatches `dapr.mcp.*` workflow names to the built-in MCP worker and all other names to the user app's registered worker — `pkg/runtime/wfengine/` or `pkg/runtime/wfruntime/`
 - [ ] WFEngine integration: start built-in MCP worker in `pkg/runtime/wfengine/wfengine.go`
 - [ ] Feature flag: add `MCPServerResource` feature flag in `pkg/config/`
 - [ ] Unit tests: `pkg/runtime/mcp/worker_test.go` with mock backend and CompStore
 - [ ] Integration tests: standalone mode with local stdio MCP server binary
-- [ ] Kubernetes e2e test: `MCPServer` CRD → `ListTools` workflow → validate tool schemas returned
-- [ ] Kubernetes e2e test: `MCPServer` CRD → `CallTool` workflow
+- [ ] Kubernetes e2e test: `MCPServer` CRD → `dapr.mcp.<mcpserver-name>.ListTools` workflow → validate tool schemas returned
+- [ ] Kubernetes e2e test: `MCPServer` CRD → `dapr.mcp.<mcpserver-name>.CallTool` workflow
 
 ### dapr-agents
 - [ ] `DaprMCPWorkflowClient`: `dapr_agents/tool/mcp/dapr_workflow_client.py` — `connect()`, `get_all_tools()`, `_make_call_tool()`
 - [ ] Reuse `create_pydantic_model_from_schema` from `dapr_agents/tool/mcp/schema.py` for tool arg models
-- [ ] Unit tests: mock `DaprClient.start_workflow`, assert tools are `WorkflowContextInjectedTool` with correct names and that invocation calls `ctx.call_child_workflow("CallTool", ...)`
+- [ ] Unit tests: mock `DaprClient.start_workflow`, assert tools are `WorkflowContextInjectedTool` with correct names and that invocation calls `ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", ...)`
 - [ ] Quickstart example: update or add an example showing `DaprMCPWorkflowClient` with a `MCPServer` CRD
 
 ### Documentation
