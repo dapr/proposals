@@ -45,6 +45,10 @@ The existing service invocation ACL (`Configuration.spec.accessControl`) only co
 - Service invocation access control (existing `Configuration.spec.accessControl`): This proposal takes architectural inspiration from the service invocation ACL but defines a separate, workflow-specific resource.
 - **Workflow history context propagation** (separate proposal): Enables application-level authorization by propagating caller context through the workflow history. `WorkflowAccessPolicy` provides infrastructure-level (sidecar) authorization, while history context propagation enables application-level authorization. These two mechanisms are complementary — the sidecar enforces coarse-grained access control, and the application can make fine-grained authorization decisions based on the propagated caller context.
 
+### Related issues
+
+None.
+
 ## Expectations and Alternatives
 
 ### What is in scope
@@ -60,7 +64,7 @@ The existing service invocation ACL (`Configuration.spec.accessControl`) only co
 
 - **Workflow management operations**: This proposal covers only the `Start` operation (starting workflows and activities). Controlling access to `Pause`, `Resume`, `Terminate`, `Purge`, `Get`, and `RaiseEvent` is deferred to a future iteration.
 - **Cross-namespace workflow invocation**: Dapr does not currently support cross-namespace workflow invocation. Policy enforcement operates within a single namespace.
-- **Non-mTLS identity**: This proposal requires mTLS for caller identification. Environments without mTLS will not be able to use workflow access policies.
+- **Non-mTLS identity**: This proposal requires mTLS for caller identification. When mTLS is disabled and a `WorkflowAccessPolicy` exists for the target app, the sidecar cannot extract the caller's identity from the request. In this case, the caller identity is treated as unknown and the default deny applies — effectively blocking all workflow invocations that are subject to a policy. This is intentional: if an operator has defined a policy, they expect access control to be enforced; silently ignoring it when mTLS is disabled would be a security gap.
 - **Source-side enforcement**: Policies are enforced only at the target sidecar. The calling sidecar does not pre-check policies.
 
 ### Alternatives considered
@@ -372,6 +376,15 @@ spec: {}
 
 This allows operators to lock down an entire namespace and then selectively grant access through additional, scoped policies.
 
+#### Multiple Policy Evaluation
+
+When multiple `WorkflowAccessPolicy` resources apply to the same target app (e.g., an unscoped namespace-wide policy and a scoped app-specific policy), all matching policies are evaluated. Rules from all applicable policies are merged into a single rule set. If any matching rule explicitly allows an invocation, it is allowed — i.e., **allow wins over the default deny**. This means a namespace-wide deny-all can be combined with app-specific allow policies without conflict:
+
+1. Collect all `WorkflowAccessPolicy` resources that apply to the target app (either by scope or by being unscoped in the same namespace).
+2. Merge all rules into a single evaluation set.
+3. Evaluate the merged rules: if any rule matches the caller and operation with `action: allow`, the invocation is allowed.
+4. If no rule matches, the invocation is denied (default deny).
+
 #### Enforcement Integration Point
 
 Policy enforcement is performed in the Durable Task API service when the target sidecar receives a workflow or activity invocation via `CallActor` on the `daprinternal` gRPC service. This is the single enforcement point for both local and cross-app invocations, since all workflow scheduling flows through the actor system.
@@ -404,7 +417,9 @@ Glob patterns use `path.Match` semantics (the Go stdlib `path.Match` function):
 - `[abc]` matches any character in the set.
 - `ProcessOrder` matches exactly `ProcessOrder`.
 
-When multiple rules match (e.g., `Process*` and `*`), the **most specific match wins**. Specificity is determined by the length of the literal prefix before the first wildcard character.
+When multiple rules match (e.g., `Process*` and `*`), the **most specific match wins**. Specificity is determined by the length of the literal prefix before the first wildcard character. If two patterns have the same prefix length, an exact match takes precedence over a wildcard match, and an `allow` action takes precedence over a `deny` action.
+
+**Invalid patterns**: Glob patterns are validated when the policy resource is loaded. If a `name` field contains an invalid glob pattern (e.g., malformed character class `[abc`), the sidecar logs a warning and the invalid rule is skipped — it is treated as if it does not exist. The remaining valid rules in the policy continue to be enforced. This prevents a single typo from silently denying or allowing all traffic.
 
 #### Policy Loading
 
@@ -441,7 +456,7 @@ When multiple rules match (e.g., `Process*` and `*`), the **most specific match 
 
 - **Correctness**: A `WorkflowAccessPolicy` scoped to an app with `defaultAction: deny` blocks all unlisted callers from starting workflows on that app. Listed callers with `action: allow` can start the matching workflows.
 - **Scopes**: The policy is only loaded by sidecars whose app ID appears in the `scopes` list. An empty `scopes` list applies the policy to all apps in the namespace.
-- **Identity verification**: Caller app ID is extracted from the SPIFFE ID in the mTLS certificate. Requests without valid mTLS credentials are denied when a policy exists with `defaultAction: deny`.
+- **Identity verification**: Caller app ID is extracted from the SPIFFE ID in the mTLS certificate. When mTLS is disabled and a policy exists, the caller identity cannot be determined and the default deny applies, blocking the invocation.
 - **Glob matching**: Patterns like `Process*` match `ProcessOrder`, `ProcessRefund`, etc. The most specific pattern takes precedence.
 - **Default deny**: When a `WorkflowAccessPolicy` exists and no rule matches, the invocation is denied.
 - **Namespace-wide deny**: A blank `WorkflowAccessPolicy` with no scopes denies all workflow invocations for every app in the namespace.
