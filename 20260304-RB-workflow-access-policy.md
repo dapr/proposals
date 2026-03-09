@@ -2,7 +2,7 @@
 
 * Author(s): Josh van Leeuwen (@JoshVanL)
 * State: Ready for Implementation
-* Updated: 03/04/2026
+* Updated: 2026-03-09
 
 ## Overview
 
@@ -62,7 +62,7 @@ None.
 
 ### What is deliberately *not* in scope
 
-- **Workflow management operations**: This proposal covers only the `Start` operation (starting workflows and activities). Controlling access to `Pause`, `Resume`, `Terminate`, `Purge`, `Get`, and `RaiseEvent` is deferred to a future iteration.
+- **Workflow management operations**: This proposal covers only the `Start` operation (starting workflows and activities). Controlling access to `Pause`, `Resume`, `Terminate`, `Purge`, `Get`, and `RaiseEvent` is deferred to a future iteration. The `operation` field in the CRD supports this extensibility — it defaults to `start` if omitted, so existing policies remain concise, and future operations (e.g., `terminate`, `pause`) can be added additively without ambiguity or breaking changes.
 - **Cross-namespace workflow invocation**: Dapr does not currently support cross-namespace workflow invocation. Policy enforcement operates within a single namespace.
 - **Non-mTLS identity**: This proposal requires mTLS for caller identification. When mTLS is disabled and a `WorkflowAccessPolicy` exists for the target app, the sidecar cannot extract the caller's identity from the request. In this case, the caller identity is treated as unknown and the default deny applies — effectively blocking all workflow invocations that are subject to a policy. This is intentional: if an operator has defined a policy, they expect access control to be enforced; silently ignoring it when mTLS is disabled would be a security gap.
 - **Source-side enforcement**: Policies are enforced only at the target sidecar. The calling sidecar does not pre-check policies.
@@ -169,6 +169,7 @@ spec:
       operations:
         - type: workflow          # "workflow" or "activity"
           name: "ProcessOrder"    # exact name or glob pattern
+          # operation: start      # optional, defaults to "start"
           action: allow
         - type: workflow
           name: "Cancel*"
@@ -257,10 +258,18 @@ const (
     WorkflowOperationTypeActivity WorkflowOperationType = "activity"
 )
 
+type WorkflowOperation string
+
+const (
+    WorkflowOperationStart WorkflowOperation = "start"
+)
+
 type WorkflowOperationRule struct {
-    Type   WorkflowOperationType `json:"type"`
-    Name   string                `json:"name"`
-    Action PolicyAction          `json:"action"`
+    Type      WorkflowOperationType `json:"type"`
+    Name      string                `json:"name"`
+    // Operation defaults to "start" if omitted (nil).
+    Operation *WorkflowOperation    `json:"operation,omitempty"`
+    Action    PolicyAction          `json:"action"`
 }
 
 // +kubebuilder:object:root=true
@@ -358,6 +367,10 @@ All workflow invocations — both local and cross-app — are handled through th
                         (default)     matched rule
 ```
 
+#### Local / Same-Sidecar Invocations
+
+When an application starts a workflow or activity on its own sidecar, the invocation still flows through the actor system and the `CallActor` handler. In this case, the caller's SPIFFE ID identifies the same app as the target. Policy evaluation proceeds normally — if a `WorkflowAccessPolicy` exists for the app, the app's own app ID must be permitted as a caller for the invocation to succeed. Operators should account for this when writing policies: if an app needs to start its own workflows, its own app ID must appear in the `callers` list (or the policy must otherwise allow the match).
+
 #### Namespace-wide Deny-All
 
 A blank `WorkflowAccessPolicy` with no scopes applied to a namespace provides a powerful security primitive — it denies all workflow invocations for every app in that namespace by default:
@@ -378,12 +391,13 @@ This allows operators to lock down an entire namespace and then selectively gran
 
 #### Multiple Policy Evaluation
 
-When multiple `WorkflowAccessPolicy` resources apply to the same target app (e.g., an unscoped namespace-wide policy and a scoped app-specific policy), all matching policies are evaluated. Rules from all applicable policies are merged into a single rule set. If any matching rule explicitly allows an invocation, it is allowed — i.e., **allow wins over the default deny**. This means a namespace-wide deny-all can be combined with app-specific allow policies without conflict:
+When multiple `WorkflowAccessPolicy` resources apply to the same target app (e.g., an unscoped namespace-wide policy and a scoped app-specific policy), all matching policies are evaluated. Rules from all applicable policies are merged into a single rule set and evaluated using the specificity-based matching described above. An explicit `deny` rule always takes precedence over an `allow` rule at the same specificity level (deny-wins). This means a namespace-wide deny-all policy (one with no rules) can be combined with app-specific allow policies: the app-specific allow rules grant access because they are more specific than the absence of rules in the deny-all policy.
 
 1. Collect all `WorkflowAccessPolicy` resources that apply to the target app (either by scope or by being unscoped in the same namespace).
 2. Merge all rules into a single evaluation set.
-3. Evaluate the merged rules: if any rule matches the caller and operation with `action: allow`, the invocation is allowed.
-4. If no rule matches, the invocation is denied (default deny).
+3. For a given caller and target workflow/activity name, identify all matching rules and select the highest-precedence rule using the specificity and tie-breaking order defined above.
+4. Apply the action (`allow` or `deny`) from the winning rule.
+5. If no rule matches, the invocation is denied (default deny).
 
 #### Enforcement Integration Point
 
@@ -417,7 +431,12 @@ Glob patterns use `path.Match` semantics (the Go stdlib `path.Match` function):
 - `[abc]` matches any character in the set.
 - `ProcessOrder` matches exactly `ProcessOrder`.
 
-When multiple rules match (e.g., `Process*` and `*`), the **most specific match wins**. Specificity is determined by the length of the literal prefix before the first wildcard character. If two patterns have the same prefix length, an exact match takes precedence over a wildcard match, and an `allow` action takes precedence over a `deny` action.
+When multiple rules match (e.g., `Process*` and `*`), the **most specific match wins**. Specificity is determined by the length of the literal prefix before the first wildcard character (`*`, `?`, or `[`). Tie-breaking rules are applied in order:
+
+1. **Longest literal prefix wins.**
+2. If tied, an **exact match** (no wildcards) takes precedence over a wildcard match.
+3. If still tied, **`deny` takes precedence over `allow`** (fail-closed).
+4. If still tied, the rule that appears **first** in the policy's rule list takes precedence.
 
 **Invalid patterns**: Glob patterns are validated when the policy resource is loaded. If a `name` field contains an invalid glob pattern (e.g., malformed character class `[abc`), the sidecar logs a warning and the invalid rule is skipped — it is treated as if it does not exist. The remaining valid rules in the policy continue to be enforced. This prevents a single typo from silently denying or allowing all traffic.
 
