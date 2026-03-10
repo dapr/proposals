@@ -193,7 +193,7 @@ Sign the serialized protobuf bytes directly instead of computing a canonical dig
 |-----------|-----------|
 | **Payload size** | History propagation increases message sizes. Mitigated by configurable scope filters and opt-in behavior. |
 | **Latency** | Signing and verification add computational overhead per workflow step. Mitigated by using efficient algorithms (Ed25519/ECDSA) and only signing when opted in. |
-| **Complexity** | Adds new concepts to the workflow programming model. Mitigated by making propagation fully opt-in with sensible defaults. |
+| **Complexity** | Adds new concepts to the workflow programming model. Mitigated by making propagation fully opt-in with a simple config (scope + ancestors). |
 | **Storage** | History signatures are persisted as metadata alongside history events, increasing state store usage. Each signature adds ~500 bytes (certificate + signature + digests) with zero event duplication. Mitigated by opt-in behavior. |
 | **Determinism** | Canonical digest computation must be identical across all SDK languages. Requires careful specification and cross-language testing. |
 
@@ -203,12 +203,47 @@ Sign the serialized protobuf bytes directly instead of computing a canonical dig
 
 #### History Propagation Model
 
-History propagation is opt-in at the point of calling a child workflow or activity. The caller specifies a **propagation scope** that determines which history events are included:
+History propagation is opt-in at the point of calling a child workflow or activity. The caller provides an optional `HistoryPropagationConfig` with two fields:
+
+**1. Scope** — which of the caller's own events to include:
 
 | Scope | Description |
 |-------|-------------|
-| `FULL` | All history events from the current workflow and all ancestor propagated history. |
-| `PARENT_CHAIN` | Only events from the direct parent chain (current workflow + parent + grandparent, etc.), excluding sibling activities and sub-orchestrations. |
+| `ALL_EVENTS` | All history events from the current workflow. |
+| `WORKFLOW_EVENTS` | Only workflow-level events (excludes sibling activity and child-workflow events). |
+
+**2. Ancestors** — whether to also forward the propagated history this workflow received from its own parent:
+
+| Mode | Description |
+|------|-------------|
+| `EXCLUDE` (default) | The child only sees this caller's events. |
+| `INCLUDE` | Ancestor events and signatures are prepended before the caller's own events, preserving the full chain. |
+
+If no `HistoryPropagationConfig` is set, no history is propagated (the default).
+
+This gives each hop full authority over what downstream consumers can see. This is critical for multi-hop chains where intermediate workflows may operate as trust boundaries.
+
+**Chain control example** — Given `A -> B -> C -> D`:
+
+| Call | Scope | Ancestors | D sees |
+|------|-------|-----------|--------|
+| A→B | ALL_EVENTS | n/a (A has no ancestor) | — |
+| B→C | ALL_EVENTS | INCLUDE | — |
+| C→D | ALL_EVENTS | INCLUDE | A + B + C + D (full chain) |
+
+| Call | Scope | Ancestors | D sees |
+|------|-------|-----------|--------|
+| A→B | ALL_EVENTS | n/a | — |
+| B→C | ALL_EVENTS | EXCLUDE | — |
+| C→D | ALL_EVENTS | INCLUDE | B + C + D (chain restarted at B) |
+
+| Call | Scope | Ancestors | D sees |
+|------|-------|-----------|--------|
+| A→B | ALL_EVENTS | n/a | — |
+| B→C | ALL_EVENTS | INCLUDE | — |
+| C→D | ALL_EVENTS | EXCLUDE | C + D only |
+
+When ancestors is `EXCLUDE`, the ancestor events and signatures are simply omitted from the `PropagatedHistory` sent to the child. The caller's own signatures are **not modified** — they retain their real `previous_signature_digest` values, preserving the fully chained signature state in the caller's state store. The child receives the caller's signatures as-is, but without the ancestor signatures needed to verify the earlier part of the chain. This means the child can verify the integrity of the caller's own history, but cannot verify (or even see) what came before. This is the intended trust boundary behavior.
 
 The propagated history is attached to the child workflow's `ExecutionStartedEvent` or the activity's `TaskScheduledEvent` as a new field. The child can then read this propagated history from its context.
 
@@ -306,14 +341,33 @@ To ensure deterministic signing across language SDKs, history events are canonic
 New messages in `orchestrator_service.proto`:
 
 ```protobuf
-// Propagation scope for workflow history
+// Scope controlling which of the caller's own history events
+// are included in the propagated history.
 enum HistoryPropagationScope {
-  // No propagation (default)
-  HISTORY_PROPAGATION_SCOPE_NONE = 0;
-  // Propagate full history from current and all ancestor workflows
-  HISTORY_PROPAGATION_SCOPE_FULL = 1;
-  // Propagate only direct parent chain events
-  HISTORY_PROPAGATION_SCOPE_PARENT_CHAIN = 2;
+  // Include all history events from the current workflow.
+  HISTORY_PROPAGATION_SCOPE_ALL_EVENTS = 0;
+  // Include only workflow-level events (excludes sibling
+  // activity and child-workflow events).
+  HISTORY_PROPAGATION_SCOPE_WORKFLOW_EVENTS = 1;
+}
+
+// Controls whether ancestor propagated history is forwarded to the child.
+enum HistoryPropagationAncestors {
+  // Do not include ancestor history (default). The child only
+  // sees the caller's own events.
+  HISTORY_PROPAGATION_ANCESTORS_EXCLUDE = 0;
+  // Include any ancestor propagated history this workflow received,
+  // prepended before the caller's own events.
+  HISTORY_PROPAGATION_ANCESTORS_INCLUDE = 1;
+}
+
+// Configuration for history propagation to a child workflow or activity.
+message HistoryPropagationConfig {
+  // Which of the caller's own events to include.
+  HistoryPropagationScope scope = 1;
+
+  // Whether to forward ancestor propagated history to the child.
+  HistoryPropagationAncestors ancestors = 2;
 }
 
 // Signing metadata for a contiguous range of history events.
@@ -440,31 +494,47 @@ message TaskScheduledEvent {
 message CreateSubOrchestrationAction {
   // ... existing fields ...
 
-  // Opt-in: propagate workflow history to the child workflow.
-  HistoryPropagationScope history_propagation_scope = 10;
+  // History propagation configuration.
+  // Absent = no propagation (default).
+  optional HistoryPropagationConfig history_propagation = 10;
 }
 
 // Add to ScheduleTaskAction
 message ScheduleTaskAction {
   // ... existing fields ...
 
-  // Opt-in: propagate workflow history to the activity.
-  HistoryPropagationScope history_propagation_scope = 10;
+  // History propagation configuration.
+  // Absent = no propagation (default).
+  optional HistoryPropagationConfig history_propagation = 10;
 }
 ```
 
 #### SDK Surface (Go Example)
 
-**Propagating history when calling a child workflow:**
+**Propagating own + ancestor history to a child workflow:**
 
 ```go
 func MyOrchestrator(ctx *task.OrchestrationContext) (any, error) {
-    // Call child workflow with full history propagation and signing
+    // Propagate this workflow's history and any ancestor history we received.
     var result string
     err := ctx.CallSubOrchestrator("ChildWorkflow",
         task.WithSubOrchestratorInput(input),
-        task.WithHistoryPropagation(protos.HISTORY_PROPAGATION_SCOPE_FULL),
-        task.WithSignHistory(true),
+        task.WithHistoryPropagation(protos.HISTORY_PROPAGATION_SCOPE_ALL_EVENTS, protos.HISTORY_PROPAGATION_ANCESTORS_INCLUDE),
+    ).Await(&result)
+    return result, err
+}
+```
+
+**Propagating only own history (trust boundary):**
+
+```go
+func TrustBoundaryOrchestrator(ctx *task.OrchestrationContext) (any, error) {
+    // This workflow acts as a trust boundary.
+    // Propagate own history but do not forward ancestor history.
+    var result string
+    err := ctx.CallSubOrchestrator("ChildWorkflow",
+        task.WithSubOrchestratorInput(input),
+        task.WithHistoryPropagation(protos.HISTORY_PROPAGATION_SCOPE_ALL_EVENTS, protos.HISTORY_PROPAGATION_ANCESTORS_EXCLUDE),
     ).Await(&result)
     return result, err
 }
@@ -474,12 +544,11 @@ func MyOrchestrator(ctx *task.OrchestrationContext) (any, error) {
 
 ```go
 func MyOrchestrator(ctx *task.OrchestrationContext) (any, error) {
-    // Call activity with parent-chain history propagation
+    // Call activity with workflow-level events and ancestor history
     var result string
     err := ctx.CallActivity("MCPToolCall",
         task.WithActivityInput(input),
-        task.WithHistoryPropagation(protos.HISTORY_PROPAGATION_SCOPE_PARENT_CHAIN),
-        task.WithSignHistory(true),
+        task.WithHistoryPropagation(protos.HISTORY_PROPAGATION_SCOPE_WORKFLOW_EVENTS, protos.HISTORY_PROPAGATION_ANCESTORS_INCLUDE),
     ).Await(&result)
     return result, err
 }
@@ -532,17 +601,19 @@ func MCPToolCallActivity(ctx task.ActivityContext) (any, error) {
 
 **In `durabletask-go`:**
 
-1. **`task/orchestrator.go`**: Extend `CallSubOrchestrator` and `CallActivity` to accept propagation options. When propagation is requested, the `CreateSubOrchestrationAction` and `ScheduleTaskAction` include the propagation scope.
+1. **`task/orchestrator.go`**: Extend `CallSubOrchestrator` and `CallActivity` to accept propagation options (`WithHistoryPropagation`). When propagation is requested, the `CreateSubOrchestrationAction` and `ScheduleTaskAction` include the `HistoryPropagationConfig`.
 
 2. **`backend/runtimestate/applier.go`**: Two responsibilities:
 
    **a. Signature creation:** After the orchestrator produces actions and the applier generates new history events, the applier creates a new `HistorySignature` covering the new events by index range. This signature is chained to the previous signature (if any) already in the in-memory `OrchestrationRuntimeState.Signatures` slice. The signature is computed using the current identity's certificate and appended to the in-memory state. No events are duplicated.
 
-   **b. Assembling propagated history (at propagation time):** When processing `CreateSubOrchestrationAction` or `ScheduleTaskAction` with propagation enabled:
+   **b. Assembling propagated history (at propagation time):** When processing `CreateSubOrchestrationAction` or `ScheduleTaskAction` with a `HistoryPropagationConfig` present:
    - Copy the relevant events from the in-memory history into the `PropagatedHistory.events` field (this is the only time events are copied - for transmission to the child).
    - Include the corresponding `HistorySignature` entries, remapping event indices to match the copied events array.
-   - If ancestor propagated history exists (this workflow itself received propagated history), prepend those events and signatures.
-   - Apply the propagation scope filter to select which events/signatures to include.
+   - Check the `ancestors` field:
+     - `INCLUDE`: If ancestor propagated history exists (this workflow itself received propagated history), prepend those events and signatures before the caller's own events/signatures. The full chain is preserved.
+     - `EXCLUDE` (default): Do not include ancestor propagated history. Only the caller's own events and signatures are included. The caller's signatures retain their real `previous_signature_digest` values (the at-rest chain is never modified), but the child won't have the ancestor signatures to verify against.
+   - Apply the propagation scope filter to select which of the caller's own events/signatures to include.
    - Attach the resulting `PropagatedHistory` to the child's `ExecutionStartedEvent` or activity's `TaskScheduledEvent`.
    - No re-signing is needed - the signatures already exist.
 
@@ -592,7 +663,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
   [Execution 2: calls activity with propagation]             |                      |                      |
        |                           |                         |                      |                      |
        |-- CallActivity(input,     |                         |                      |                      |
-       |   scope=FULL)             |                         |                      |                      |
+       |   scope=ALL_EVENTS)       |                         |                      |                      |
        |                           |                         |                      |                      |
        |                    [generate new history events]     |                      |                      |
        |                    [create HistorySignature:         |                      |                      |
@@ -650,7 +721,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 
 #### Alpha
 
-- History propagation with `FULL` and `PARENT_CHAIN` scopes.
+- History propagation with `ALL_EVENTS` and `WORKFLOW_EVENTS` scopes.
 - History signing with chain-of-custody model.
 - Go SDK support only.
 - Feature gated behind `WorkflowHistoryPropagation` feature flag (disabled by default).
@@ -688,7 +759,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 
 3. **Certificate coupling**: History signing is coupled to Dapr's identity certificate infrastructure. Environments that do not use Dapr's mTLS (e.g., running without Sentry) cannot use history signing.
 
-4. **Partial history trust**: If a workflow propagates history with `PARENT_CHAIN` scope, the child cannot verify that sibling events were not omitted. The scope filter is applied by the sender, so the child trusts the sender's filtering.
+4. **Partial history trust**: If a workflow propagates history with `WORKFLOW_EVENTS` scope, the child cannot verify that sibling events were not omitted. The scope filter is applied by the sender, so the child trusts the sender's filtering. Similarly, when ancestors is `EXCLUDE`, the child has no way to know whether ancestor history existed — only that the chain root was not the original workflow creator. This is by design: each hop has full authority over what it forwards.
 
 ## Acceptance Criteria
 
@@ -725,6 +796,10 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 | Large history with size limit | Propagation rejected when exceeding limit |
 | Propagation depth limit | Propagation stops at configured depth |
 | Mixed signing (some hops signed, some not) | Unsigned ranges are clearly identified |
+| Ancestors INCLUDE | Child sees full ancestor chain |
+| Ancestors EXCLUDE | Child sees only caller's own history |
+| Chain verification with EXCLUDE | Child can verify caller's own signatures but ancestor chain is unverifiable |
+| Multi-hop mixed ancestors | A→B(INCLUDE)→C(EXCLUDE)→D(INCLUDE): D sees C+D only |
 | Cross-app propagation | History propagated across app boundaries via actor routing |
 | Replay determinism | Propagated history does not affect orchestrator replay |
 | At-rest signing persistence | Signed chunks persisted and loadable across workflow executions |
@@ -752,7 +827,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
   - [ ] Feature flag `WorkflowHistoryPropagation`
   - [ ] Size and depth limit enforcement
 - [ ] SDK changes:
-  - [ ] Go SDK: `WithHistoryPropagation`, `WithSignHistory`, `GetPropagatedHistory`, `VerifyChain`
+  - [ ] Go SDK: `WithHistoryPropagation`, `GetPropagatedHistory`, `VerifyChain`
   - [ ] .NET SDK (beta)
   - [ ] Python SDK (beta)
   - [ ] Java SDK (stable)
