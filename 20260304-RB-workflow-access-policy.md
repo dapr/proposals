@@ -289,8 +289,9 @@ Cross-app workflow and activity execution is being added this release. It works 
 3. The orchestrator actor constructs a cross-app actor type: `dapr.internal.<namespace>.<targetAppId>.activity` (or `.workflow`).
 4. The placement table resolves this actor type to the target sidecar's address.
 5. The source sidecar calls `CallActor` on the target sidecar via the `daprinternal` gRPC service.
-6. The target sidecar invokes the activity/workflow actor locally.
-7. Results are routed back using the `SourceAppID` from the `Router`.
+6. **Policy check**: The target sidecar extracts the caller's app ID from the SPIFFE ID in the mTLS peer certificate, then evaluates the `WorkflowAccessPolicy` scoped to the target app. If the policy denies the caller, the request is rejected with `PermissionDenied` before the actor is invoked.
+7. The target sidecar invokes the activity/workflow actor locally.
+8. Results are routed back using the `SourceAppID` from the `Router`.
 
 #### Enforcement Flow
 
