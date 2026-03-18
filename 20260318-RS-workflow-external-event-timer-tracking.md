@@ -33,7 +33,7 @@ There are two gaps in the current implementation:
 ### In scope
 
 - Proto schema changes to `CreateTimerAction` and `TimerCreatedEvent`.
-- SDK changes to populate the new `timer_context.external_event` field.
+- SDK changes to populate the new `origin.external_event` field.
 - SDK changes to always emit a timer, using an infinite duration for indefinite waits.
 
 ### Out of scope
@@ -42,7 +42,7 @@ There are two gaps in the current implementation:
 
 ### Alternatives considered
 
-**Add a new event type to the workflow history.** This would grow the history size, which we want to keep as lean as possible. Attaching the context to the existing timer event is a better fit.
+**Add a new event type to the workflow history.** This would grow the history size, which we want to keep as lean as possible. Attaching the origin to the existing timer event is a better fit.
 
 **Query workflow history directly.** This is not possible. Replaying history requires executing the workflow code, which runs in the SDK on the customer side. We have no access to it, so we cannot determine the current state by replaying history alone.
 
@@ -50,7 +50,7 @@ There are two gaps in the current implementation:
 
 ### Proto Schema
 
-Two messages in `durabletask-protobuf` are extended with a `timer_context` oneof:
+Two messages in `durabletask-protobuf` are extended with a `origin` oneof:
 
 ```protobuf
 // orchestrator_actions.proto
@@ -58,8 +58,8 @@ message CreateTimerAction {
     google.protobuf.Timestamp fireAt = 1;
     optional string name = 2;
 
-    oneof timer_context {
-        ExternalEventTimerInfo external_event = 3;
+    oneof origin {
+        TimerOriginExternalEvent external_event = 3;
     }
 }
 
@@ -69,30 +69,30 @@ message TimerCreatedEvent {
     optional string name = 2;
     optional RerunParentInstanceInfo rerunParentInstanceInfo = 3;
 
-    oneof timer_context {
-        ExternalEventTimerInfo external_event = 4;
+    oneof origin {
+        TimerOriginExternalEvent external_event = 4;
     }
 }
 
 // Indicates the timer was created as a timeout for a waitForExternalEvent call.
-message ExternalEventTimerInfo {
+message TimerOriginExternalEvent {
     // The name of the external event being waited on, matching EventRaisedEvent.name.
     string name = 1;
 }
 ```
 
-The `oneof` is used to keep the field extensible for future timer context types (e.g. child workflow timeouts) without breaking existing consumers.
+The `oneof` is used to keep the field extensible for future timer origin types (e.g. child workflow timeouts) without breaking existing consumers.
 
 ### SDK Behavior Changes
 
 All Dapr Workflow SDKs MUST be updated as follows:
 
-#### 1. Always populate `timer_context.external_event`
+#### 1. Always populate `origin.external_event`
 
 When constructing a `CreateTimerAction` as part of a `waitForExternalEvent` call, the SDK MUST set:
 
 ```
-createTimerAction.timer_context.external_event.name = <event_name>
+createTimerAction.origin.external_event.name = <event_name>
 ```
 
 where `<event_name>` is the name passed to `waitForExternalEvent`.
@@ -101,12 +101,12 @@ where `<event_name>` is the name passed to `waitForExternalEvent`.
 
 SDKs MUST always emit a `CreateTimerAction` when `waitForExternalEvent` is called, regardless of whether a timeout was provided by the caller.
 
-- **With timeout:** behavior is unchanged except for the new `timer_context` field.
+- **With timeout:** behavior is unchanged except for the new `origin` field.
 - **Without timeout:** create a timer with `fireAt` set to the maximum representable future timestamp (e.g. `9999-12-31T23:59:59Z`). This timer effectively never fires, but its presence in the timer store makes the wait observable.
 
 ### Backwards Compatibility
 
-The `timer_context` field is an `optional` `oneof`, so existing consumers that do not understand it will ignore it. The change is backwards compatible on the wire.
+The `origin` field is an `optional` `oneof`, so existing consumers that do not understand it will ignore it. The change is backwards compatible on the wire.
 
 Existing workflows that resume after an SDK upgrade will not have the new field on previously-created timers. This is acceptable.
 
@@ -122,7 +122,7 @@ SDKs that previously skipped timer creation for indefinite waits will now emit a
 
 ### Acceptance Criteria
 
-- [ ] `CreateTimerAction.timer_context.external_event.name` is set to the event name on every timer created by `waitForExternalEvent`.
+- [ ] `CreateTimerAction.origin.external_event.name` is set to the event name on every timer created by `waitForExternalEvent`.
 - [ ] A timer is emitted for `waitForExternalEvent` calls with no timeout, using a far-future `fireAt` timestamp.
 - [ ] All SDKs have test coverage for both cases (with timeout, without timeout).
 - [ ] Existing `waitForExternalEvent` tests continue to pass.
@@ -130,7 +130,7 @@ SDKs that previously skipped timer creation for indefinite waits will now emit a
 ## Completion Checklist
 
 - [ ] `durabletask-protobuf`: update proto schema
-- [ ] Runtime: propagate `timer_context` from `CreateTimerAction` to `TimerCreatedEvent`
+- [ ] Runtime: propagate `origin` from `CreateTimerAction` to `TimerCreatedEvent`
 - [ ] SDK: Go
 - [ ] SDK: .NET
 - [ ] SDK: Java
