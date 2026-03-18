@@ -6,7 +6,7 @@
 
 ## Overview
 
-This proposal introduces a new standalone Kubernetes CRD and Dapr resource: **WorkflowAccessPolicy**. This resource controls which app IDs are permitted to start specific workflows and activities on a target application. It acts as an ingress access control mechanism for the Dapr Workflow building block, analogous to how the existing `AccessControlSpec` in the `Configuration` resource governs service invocation.
+This proposal introduces a new standalone Kubernetes CRD and Dapr resource: **WorkflowAccessPolicy**. This resource controls which app IDs are permitted to schedule specific workflows and activities on a target application. It acts as an ingress access control mechanism for the Dapr Workflow building block, analogous to how the existing `AccessControlSpec` in the `Configuration` resource governs service invocation.
 
 Areas affected:
 
@@ -18,20 +18,20 @@ Areas affected:
 
 ### Motivation
 
-Dapr Workflows currently have **no dedicated access control mechanism**. Any application that can reach another application's Dapr sidecar can start, and by extension interact with, any workflow or activity on that application. In multi-tenant environments or platforms with shared infrastructure, this is a significant security gap.
+Dapr Workflows currently have **no dedicated access control mechanism**. Any application that can reach another application's Dapr sidecar can schedule, and by extension interact with, any workflow or activity on that application. In multi-tenant environments or platforms with shared infrastructure, this is a significant security gap.
 
 The existing service invocation ACL (`Configuration.spec.accessControl`) only covers service-to-service direct invocation calls. Whilst possible to limit actor invocations using this mechanism, it does not use the workflow primitives as first class concepts.
 
 ### Goals
 
-- Operators can define per-app policies that restrict which source app IDs may start specific workflows and activities.
+- Operators can define per-app policies that restrict which source app IDs may schedule specific workflows and activities.
 - Policies support glob patterns for workflow and activity names (e.g., `order-*`).
 - Caller identity is established via SPIFFE IDs extracted from mTLS certificates, consistent with existing Dapr security primitives.
 - The policy uses `scopes` to associate with target apps, consistent with how Components, Subscriptions, and HTTPEndpoints work.
 - The policy is a standalone CRD, decoupled from the monolithic `Configuration` resource.
 - When a `WorkflowAccessPolicy` exists, the default action is **deny** — a blank policy with no scopes in a namespace denies all workflow invocations by default, providing a secure-by-default posture.
 - When no `WorkflowAccessPolicy` exists for a target app, workflows are unrestricted (backward compatible).
-- Policies cover both local workflow invocation and the upcoming cross-app workflow/activity invocation (being added this release) that routes through the Durable Task API service.
+- Policies cover both local workflow invocation and cross-app workflow/activity invocation (added in v1.15) that routes through the Durable Task API service.
 
 ### Current Shortfalls
 
@@ -62,7 +62,7 @@ None.
 
 ### What is deliberately *not* in scope
 
-- **Workflow management operations**: This proposal covers only the `Start` operation (starting workflows and activities). Controlling access to `Pause`, `Resume`, `Terminate`, `Purge`, `Get`, and `RaiseEvent` is deferred to a future iteration. The `operation` field in the CRD supports this extensibility — it defaults to `start` if omitted, so existing policies remain concise, and future operations (e.g., `terminate`, `pause`) can be added additively without ambiguity or breaking changes.
+- **Workflow management operations**: This proposal covers only the `schedule` operation (scheduling workflows and activities). Controlling access to `Pause`, `Resume`, `Terminate`, `Purge`, `Get`, and `RaiseEvent` is deferred to a future iteration. The `operation` field in the CRD supports this extensibility — it defaults to `schedule` if omitted, so existing policies remain concise, and future operations (e.g., `terminate`, `pause`) can be added additively without ambiguity or breaking changes. A wildcard `*` value will match all operations when multiple operations are supported.
 - **Cross-namespace workflow invocation**: Dapr does not currently support cross-namespace workflow invocation. Policy enforcement operates within a single namespace.
 - **Non-mTLS identity**: This proposal requires mTLS for caller identification. When mTLS is disabled and a `WorkflowAccessPolicy` exists for the target app, the sidecar cannot extract the caller's identity from the request. In this case, the caller identity is treated as unknown and the default deny applies — effectively blocking all workflow invocations that are subject to a policy. This is intentional: if an operator has defined a policy, they expect access control to be enforced; silently ignoring it when mTLS is disabled would be a security gap.
 - **Source-side enforcement**: Policies are enforced only at the target sidecar. The calling sidecar does not pre-check policies.
@@ -130,7 +130,7 @@ Delegate workflow access decisions to an external policy engine like Open Policy
 ### Disadvantages
 
 - **mTLS required**: Without mTLS, caller identity cannot be verified, and the policy cannot be enforced. This is a hard requirement.
-- **Start-only scope**: This initial version only controls who can start workflows/activities, not who can manage them. This may leave management operations unprotected.
+- **Schedule-only scope**: This initial version only controls who can schedule workflows/activities, not who can manage them. This may leave management operations unprotected.
 - **Glob pattern complexity**: Glob matching adds implementation complexity and may have edge cases with overlapping patterns. The most specific match must win.
 
 ### Performance implications
@@ -159,7 +159,7 @@ spec:
   # Default action when no rule matches. Defaults to "deny" if omitted.
   defaultAction: deny
 
-  # Ingress rules defining which callers can start which workflows/activities.
+  # Ingress rules defining which callers can schedule which workflows/activities.
   rules:
     - # Callers that this rule applies to.
       callers:
@@ -169,7 +169,7 @@ spec:
       operations:
         - type: workflow          # "workflow" or "activity"
           name: "ProcessOrder"    # exact name or glob pattern
-          # operation: start      # optional, defaults to "start"
+          # operation: schedule    # optional, defaults to "schedule"
           action: allow
         - type: workflow
           name: "Cancel*"
@@ -261,13 +261,13 @@ const (
 type WorkflowOperation string
 
 const (
-    WorkflowOperationStart WorkflowOperation = "start"
+    WorkflowOperationSchedule WorkflowOperation = "schedule"
 )
 
 type WorkflowOperationRule struct {
     Type      WorkflowOperationType `json:"type"`
     Name      string                `json:"name"`
-    // Operation defaults to "start" if omitted (nil).
+    // Operation defaults to "schedule" if omitted (nil).
     Operation *WorkflowOperation    `json:"operation,omitempty"`
     Action    PolicyAction          `json:"action"`
 }
@@ -282,7 +282,7 @@ type WorkflowAccessPolicyList struct {
 
 #### Cross-App Workflow Invocation
 
-Cross-app workflow and activity execution is being added this release. It works through the **actor system** via the Durable Task API service:
+Cross-app workflow and activity execution was added in v1.15. It works through the **actor system** via the Durable Task API service. The `WorkflowAccessPolicy` applies to both local and cross-app invocations:
 
 1. An orchestrator on App A calls `CallActivity("myActivity", WithActivityAppID("app-b"))` or creates a sub-orchestration targeting another app.
 2. The SDK injects a `Router` proto into the history event, carrying `SourceAppID` and `TargetAppID`.
@@ -370,7 +370,7 @@ All workflow invocations — both local and cross-app — are handled through th
 
 #### Local / Same-Sidecar Invocations
 
-When an application starts a workflow or activity on its own sidecar, the invocation still flows through the actor system and the `CallActor` handler. In this case, the caller's SPIFFE ID identifies the same app as the target. Policy evaluation proceeds normally — if a `WorkflowAccessPolicy` exists for the app, the app's own app ID must be permitted as a caller for the invocation to succeed. Operators should account for this when writing policies: if an app needs to start its own workflows, its own app ID must appear in the `callers` list (or the policy must otherwise allow the match).
+When an application schedules a workflow or activity on its own sidecar, the invocation still flows through the actor system and the `CallActor` handler. In this case, the caller's SPIFFE ID identifies the same app as the target. Policy evaluation proceeds normally — if a `WorkflowAccessPolicy` exists for the app, the app's own app ID must be permitted as a caller for the invocation to succeed. Operators should account for this when writing policies: if an app needs to schedule its own workflows, its own app ID must appear in the `callers` list (or the policy must otherwise allow the match).
 
 #### Namespace-wide Deny-All
 
@@ -452,7 +452,7 @@ When multiple rules match (e.g., `Process*` and `*`), the **most specific match 
 #### Alpha (v1alpha1)
 
 - CRD registered and loadable by the Dapr runtime.
-- Enforcement on workflow and activity start invocations via the Durable Task API service.
+- Enforcement on workflow and activity schedule invocations via the Durable Task API service.
 - Glob pattern support for workflow and activity names.
 - SPIFFE-based caller identity.
 - Hot-reload enabled by default.
@@ -474,7 +474,7 @@ When multiple rules match (e.g., `Process*` and `*`), the **most specific match 
 
 ### Acceptance Criteria
 
-- **Correctness**: A `WorkflowAccessPolicy` scoped to an app with `defaultAction: deny` blocks all unlisted callers from starting workflows on that app. Listed callers with `action: allow` can start the matching workflows.
+- **Correctness**: A `WorkflowAccessPolicy` scoped to an app with `defaultAction: deny` blocks all unlisted callers from scheduling workflows on that app. Listed callers with `action: allow` can schedule the matching workflows.
 - **Scopes**: The policy is only loaded by sidecars whose app ID appears in the `scopes` list. An empty `scopes` list applies the policy to all apps in the namespace.
 - **Identity verification**: Caller app ID is extracted from the SPIFFE ID in the mTLS certificate. When mTLS is disabled and a policy exists, the caller identity cannot be determined and the default deny applies, blocking the invocation.
 - **Glob matching**: Patterns like `Process*` match `ProcessOrder`, `ProcessRefund`, etc. The most specific pattern takes precedence.
@@ -495,7 +495,7 @@ When multiple rules match (e.g., `Process*` and `*`), the **most specific match 
 - [ ] Self-hosted file loading support
 - [ ] Hot-reload support
 - [ ] Unit tests for policy parsing, glob matching, and enforcement
-- [ ] Integration tests (allowed/denied workflow start with various policy configurations)
+- [ ] Integration tests (allowed/denied workflow schedule with various policy configurations)
 - [ ] E2E tests in Kubernetes
 - [ ] Feature flag gating
 - [ ] Metrics for policy evaluation results
