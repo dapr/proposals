@@ -31,7 +31,7 @@ The existing service invocation ACL (`Configuration.spec.accessControl`) only co
 - The policy is a standalone CRD, decoupled from the monolithic `Configuration` resource.
 - When a `WorkflowAccessPolicy` exists, the default action is **deny** — a blank policy with no scopes in a namespace denies all workflow invocations by default, providing a secure-by-default posture.
 - When no `WorkflowAccessPolicy` exists for a target app, workflows are unrestricted (backward compatible).
-- Policies cover both local workflow invocation and cross-app workflow/activity invocation (added in v1.15) that routes through the Durable Task API service.
+- Policies cover both local workflow invocation and cross-app workflow/activity invocation (added in v1.16) that routes through the Durable Task API service.
 
 ### Current Shortfalls
 
@@ -282,7 +282,7 @@ type WorkflowAccessPolicyList struct {
 
 #### Cross-App Workflow Invocation
 
-Cross-app workflow and activity execution was added in v1.15. It works through the **actor system** via the Durable Task API service. The `WorkflowAccessPolicy` applies to both local and cross-app invocations:
+Cross-app workflow and activity execution was added in v1.16. It works through the **actor system** via the Durable Task API service. The `WorkflowAccessPolicy` applies to both local and cross-app invocations:
 
 1. An orchestrator on App A calls `CallActivity("myActivity", WithActivityAppID("app-b"))` or creates a sub-orchestration targeting another app.
 2. The SDK injects a `Router` proto into the history event, carrying `SourceAppID` and `TargetAppID`.
