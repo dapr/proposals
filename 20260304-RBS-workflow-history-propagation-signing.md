@@ -194,7 +194,7 @@ Sign the serialized protobuf bytes directly instead of computing a canonical dig
 | **Payload size** | History propagation increases message sizes. Mitigated by configurable scope filters and opt-in behavior. |
 | **Latency** | Signing and verification add computational overhead per workflow step. Mitigated by using efficient algorithms (Ed25519/ECDSA) and only signing when opted in. |
 | **Complexity** | Adds new concepts to the workflow programming model. Mitigated by making propagation fully opt-in with a simple config (scope + ancestors). |
-| **Storage** | History signatures are persisted as metadata alongside history events, increasing state store usage. Each signature adds ~500 bytes (certificate + signature + digests) with zero event duplication. Mitigated by opt-in behavior. |
+| **Storage** | History signatures are persisted as metadata alongside history events, increasing state store usage. Each signature adds ~100 bytes (certificate index + signature + digests) with certificates deduplicated into a separate table (~1-3 entries per workflow). Mitigated by opt-in behavior. |
 | **Determinism** | Canonical digest computation must be identical across all SDK languages. Requires careful specification and cross-language testing. |
 
 ## Implementation Details
@@ -259,6 +259,13 @@ History signing is **persisted as part of the workflow history in the state stor
 Each identity that processes workflow history produces a **history signature** that is persisted as a separate actor state key (e.g., `signature-000000`), following the same pattern as `history-NNNNNN` and `inbox-NNNNNN` keys. Crucially, the signature is metadata-only - it does **not** duplicate the history events. Instead, it references a contiguous range of events by index and stores only the signing artifacts:
 
 ```
+SigningCertificate {
+    // X.509 certificate (PEM-encoded) of a signing identity.
+    // The SPIFFE ID is extracted from the certificate's SAN field
+    // during verification.
+    certificate: bytes
+}
+
 HistorySignature {
     // Index of the first event covered by this signature (inclusive).
     // References events in the existing OldEvents/NewEvents arrays.
@@ -273,14 +280,13 @@ HistorySignature {
     // Canonical SHA-256 digest of the events in this range
     events_digest: bytes
 
-    // The signing identity's X.509 certificate (PEM)
-    certificate: bytes
+    // Index into the signing certificate table (sigcert-NNNNNN keys).
+    // The certificate and SPIFFE ID are resolved via this index,
+    // avoiding duplication across signatures from the same identity.
+    certificate_index: int32
 
     // Signature over: SHA-256(previous_signature_digest || events_digest)
     signature: bytes
-
-    // The SPIFFE ID of the signing identity
-    spiffe_id: string
 }
 ```
 
@@ -290,10 +296,10 @@ The events themselves are stored once - in the existing `OldEvents`/`NewEvents` 
 
 The chain works as follows:
 
-1. **Root workflow creation**: When a workflow is created and the first `OrchestratorStarted` event is processed, the runtime computes the canonical digest of those events, signs it with the hosting identity's certificate, and persists a `HistorySignature` as `signature-000000` in the actor state store with `start_event_index=0`, `event_count=N`, and `previous_signature_digest = empty`.
-2. **Subsequent orchestrator executions**: Each time the orchestrator is re-invoked (new events arrive), the runtime creates a new `HistorySignature` covering the new event range, chaining it to the previous signature via `previous_signature_digest`. The new signature is persisted as `signature-000001`, etc.
+1. **Root workflow creation**: When a workflow is created and the first `OrchestratorStarted` event is processed, the runtime computes the canonical digest of those events, signs it with the hosting identity's certificate, persists the certificate as `sigcert-000000`, and persists a `HistorySignature` as `signature-000000` in the actor state store with `start_event_index=0`, `event_count=N`, `certificate_index=0`, and `previous_signature_digest = empty`.
+2. **Subsequent orchestrator executions**: Each time the orchestrator is re-invoked (new events arrive), the runtime creates a new `HistorySignature` covering the new event range, chaining it to the previous signature via `previous_signature_digest`. If the current identity certificate matches the last entry in the certificate table, the same `certificate_index` is reused. If the certificate has rotated, a new `SigningCertificate` entry is appended (e.g., `sigcert-000001`) and the new index is used. The new signature is persisted as `signature-000001`, etc.
 3. **Cross-app child workflow**: When a child workflow runs on a different app (different identity), it creates its own signature chained to the parent's last signature. Since signatures are already persisted, the parent's signing metadata is simply included when propagating.
-4. **Verification**: A verifier walks the chain from root to leaf. For each signature, it recomputes the canonical digest of the referenced event range and checks it against `events_digest`, then verifies the cryptographic signature against the certificate. Certificate validity is checked against the timestamp of the last event in the signed range (which is covered by the digest and thus tamper-proof).
+4. **Verification**: A verifier walks the chain from root to leaf. For each signature, it resolves the `certificate_index` to the corresponding `SigningCertificate`, recomputes the canonical digest of the referenced event range and checks it against `events_digest`, then verifies the cryptographic signature against the certificate. Certificate validity is checked against the timestamp of the last event in the signed range (which is covered by the digest and thus tamper-proof).
 
 **Signing lifecycle within a single workflow execution:**
 
@@ -301,19 +307,22 @@ The chain works as follows:
 Execution 1 (OrchestratorStarted + ExecutionStarted + TaskScheduled):
   Transactional write to actor state store:
     history-000000 = e0, history-000001 = e1, history-000002 = e2
-    signature-000000 = {start=0, count=3, prev_digest=empty, cert=AppA_cert_v1, ...}
-    metadata = {historyLength=3, signatureLength=1}
+    sigcert-000000 = {cert=AppA_cert_v1}
+    signature-000000 = {start=0, count=3, prev_digest=empty, cert_index=0, ...}
+    metadata = {historyLength=3, signatureLength=1, signingCertificateLength=1}
 
 Execution 2 (TaskCompleted + new TaskScheduled):
   Transactional write to actor state store:
     history-000003 = e3, history-000004 = e4
-    signature-000001 = {start=3, count=2, prev_digest=digest(sig0), cert=AppA_cert_v2, ...}
-    metadata = {historyLength=5, signatureLength=2}
-  (Note: cert may have rotated between executions - this is fine,
-   each signature uses the cert active at signing time)
+    sigcert-000001 = {cert=AppA_cert_v2}  (cert rotated since execution 1)
+    signature-000001 = {start=3, count=2, prev_digest=digest(sig0), cert_index=1, ...}
+    metadata = {historyLength=5, signatureLength=2, signingCertificateLength=2}
+  (Note: cert rotated between executions - new sigcert entry appended,
+   each signature references the cert active at signing time by index)
 
 Propagation to child workflow:
   -> Copy events [e0..e4] into PropagatedHistory.events
+  -> Include [sigcert-000000, sigcert-000001] in PropagatedHistory.certificates
   -> Include [signature-000000, signature-000001] in PropagatedHistory.signatures
   -> Events are copied only at propagation time, not duplicated at rest
 ```
@@ -370,6 +379,19 @@ message HistoryPropagationConfig {
   HistoryPropagationAncestors ancestors = 2;
 }
 
+// A signing identity's X.509 certificate, stored once and referenced
+// by index from HistorySignature entries. This avoids duplicating the
+// certificate across every signature from the same identity.
+// Stored as individual actor state keys: sigcert-000000, sigcert-000001, etc.
+message SigningCertificate {
+  // X.509 certificate (PEM-encoded) of the signing identity.
+  // This is the Dapr identity certificate (SVID).
+  // The SPIFFE ID is extracted from the certificate's SAN field
+  // during verification — it is not stored separately to avoid
+  // an unsigned field that could be spoofed.
+  bytes certificate = 1;
+}
+
 // Signing metadata for a contiguous range of history events.
 // This is a metadata-only message - it does NOT contain the events themselves.
 // Events are stored once in OldEvents/NewEvents; this message references
@@ -389,17 +411,15 @@ message HistorySignature {
   // Canonical SHA-256 digest of the events in this range.
   bytes events_digest = 4;
 
-  // X.509 certificate (PEM-encoded) of the signing identity.
-  // This is the Dapr identity certificate (SVID) of the app that
-  // produced and signed this range of events.
-  bytes certificate = 5;
+  // Index into the SigningCertificate table (sigcert-NNNNNN keys).
+  // Multiple signatures from the same identity (or the same cert
+  // epoch) share the same certificate_index. A new entry is appended
+  // only when the certificate rotates.
+  int32 certificate_index = 5;
 
   // Cryptographic signature over SHA-256(previous_signature_digest || events_digest)
-  // using the private key corresponding to the certificate.
+  // using the private key corresponding to the referenced certificate.
   bytes signature = 6;
-
-  // The SPIFFE ID of the signing identity (informational, verified via certificate).
-  string spiffe_id = 7;
 
   // Note: there is no signed_at timestamp. Certificate validity is verified
   // against the timestamp of the last HistoryEvent in the signed range
@@ -423,6 +443,11 @@ message PropagatedHistory {
 
   // The propagation scope that was used to produce this history.
   HistoryPropagationScope scope = 3;
+
+  // Deduplicated certificate table. Signatures reference certificates
+  // by index into this list. Copied from the at-rest sigcert-NNNNNN
+  // keys at propagation time.
+  repeated SigningCertificate certificates = 4;
 }
 ```
 
@@ -440,14 +465,16 @@ Actor State Store:
 └── {actorType}||{actorID}||metadata        → WorkflowStateMetadata (protobuf)
 ```
 
-History signatures MUST follow this same pattern, stored as separate actor state keys:
+History signing adds two new key prefixes following this same pattern:
 
 ```
+├── {actorType}||{actorID}||sigcert-000000    → SigningCertificate (protobuf)
+├── {actorType}||{actorID}||sigcert-000001    → SigningCertificate (protobuf)
 ├── {actorType}||{actorID}||signature-000000  → HistorySignature (protobuf)
 ├── {actorType}||{actorID}||signature-000001  → HistorySignature (protobuf)
 ```
 
-The `WorkflowStateMetadata` protobuf is extended with a `signatureLength` field to track the number of stored signatures, matching the existing `inboxLength` and `historyLength` pattern.
+The `WorkflowStateMetadata` protobuf is extended with fields to track both signing certificates and signatures, matching the existing `inboxLength` and `historyLength` pattern.
 
 ```protobuf
 // Extend existing WorkflowStateMetadata
@@ -457,12 +484,16 @@ message WorkflowStateMetadata {
   // Number of HistorySignature entries stored.
   uint64 signature_length = 4;
 
+  // Number of SigningCertificate entries stored (deduplicated;
+  // typically 1-3 per workflow, growing only on certificate rotation).
+  uint64 signing_certificate_length = 5;
+
   // Whether history signing is enabled for this workflow instance.
-  bool history_signing_enabled = 5;
+  bool history_signing_enabled = 6;
 }
 ```
 
-The in-memory `wfenginestate.State` struct is extended with a `Signatures []*HistorySignature` field, loaded via bulk get alongside inbox and history events, and saved via the same transactional state operation pattern with `addStateOperations(req, signatureKeyPrefix, ...)`.
+The in-memory `wfenginestate.State` struct is extended with `SigningCertificates []*SigningCertificate` and `Signatures []*HistorySignature` fields, loaded via bulk get alongside inbox and history events, and saved via the same transactional state operation pattern with `addStateOperations(req, sigcertKeyPrefix, ...)` and `addStateOperations(req, signatureKeyPrefix, ...)`.
 
 The `OrchestrationRuntimeState` in-memory struct gains a corresponding `Signatures` field, populated from the loaded state when reconstructed.
 
@@ -561,9 +592,9 @@ func ChildWorkflow(ctx *task.OrchestrationContext) (any, error) {
     // Access propagated history (nil if not propagated)
     history := ctx.GetPropagatedHistory()
     if history != nil {
-        // Inspect caller identities
+        // Inspect caller identities (SPIFFE ID extracted from certificate SAN)
         for _, sig := range history.Signatures() {
-            fmt.Printf("Processed by: %s\n", sig.SpiffeID())
+            fmt.Printf("Processed by: %s\n", sig.SigningIdentity())
         }
 
         // Check for specific events in history
@@ -605,7 +636,7 @@ func MCPToolCallActivity(ctx task.ActivityContext) (any, error) {
 
 2. **`backend/runtimestate/applier.go`**: Two responsibilities:
 
-   **a. Signature creation:** After the orchestrator produces actions and the applier generates new history events, the applier creates a new `HistorySignature` covering the new events by index range. This signature is chained to the previous signature (if any) already in the in-memory `OrchestrationRuntimeState.Signatures` slice. The signature is computed using the current identity's certificate and appended to the in-memory state. No events are duplicated.
+   **a. Signature creation:** After the orchestrator produces actions and the applier generates new history events, the applier creates a new `HistorySignature` covering the new events by index range. This signature is chained to the previous signature (if any) already in the in-memory `OrchestrationRuntimeState.Signatures` slice. The current identity certificate is compared to the last entry in the in-memory `SigningCertificates` table — if it matches, the existing `certificate_index` is reused; if it differs (rotation), a new `SigningCertificate` is appended. The signature is computed using the current identity's private key and appended to the in-memory state. No events are duplicated.
 
    **b. Assembling propagated history (at propagation time):** When processing `CreateSubOrchestrationAction` or `ScheduleTaskAction` with a `HistoryPropagationConfig` present:
    - Copy the relevant events from the in-memory history into the `PropagatedHistory.events` field (this is the only time events are copied - for transmission to the child).
@@ -624,17 +655,17 @@ func MCPToolCallActivity(ctx task.ActivityContext) (any, error) {
 1. **`pkg/runtime/wfengine/`**: Pass the Dapr security provider to the workflow engine so it can access the identity certificate for signing. The security provider is used at state persistence time (every orchestrator execution), not just at propagation time.
 
 2. **`pkg/runtime/wfengine/state/state.go`**:
-   - Extend the `State` struct with a `Signatures []*HistorySignature` field.
-   - On load (`LoadWorkflowState`): bulk-get `signature-000000` through `signature-{N}` keys using the `signatureLength` from metadata, same pattern as inbox/history loading.
-   - On save (`GetSaveRequest`): call `addStateOperations(req, signatureKeyPrefix, s.Signatures, ...)` to include signature entries in the transactional write, same pattern as inbox/history saving.
-   - Extend `WorkflowStateMetadata` with `signatureLength` and `historySigningEnabled`.
+   - Extend the `State` struct with `SigningCertificates []*SigningCertificate` and `Signatures []*HistorySignature` fields.
+   - On load (`LoadWorkflowState`): bulk-get `sigcert-000000` through `sigcert-{N}` using `signingCertificateLength`, and `signature-000000` through `signature-{N}` using `signatureLength` from metadata, same pattern as inbox/history loading.
+   - On save (`GetSaveRequest`): call `addStateOperations` for both `sigcertKeyPrefix` and `signatureKeyPrefix` to include entries in the transactional write, same pattern as inbox/history saving.
+   - Extend `WorkflowStateMetadata` with `signatureLength`, `signingCertificateLength`, and `historySigningEnabled`.
 
 3. **`pkg/actors/targets/workflow/orchestrator/`**:
    - **State persistence**: After each orchestrator execution completes, in `saveInternalState()`, the new `HistorySignature` entries are included in the transactional state operation alongside history and inbox entries. Each signature is persisted as an individual actor state key (`signature-000000`, etc.).
    - **Propagation**: When building child workflow start events and activity task events, read signatures from the loaded state and copy the relevant events to assemble the `PropagatedHistory`.
 
 3. **History Verification Utility** (`pkg/runtime/wfengine/historyverify/`):
-   - `VerifySignatures(signatures []*HistorySignature, events []*HistoryEvent) error` - walks the signature chain, recomputes the canonical digest of each referenced event range, verifies it against the stored `events_digest`, then checks the cryptographic signature against the certificate and verifies certificate validity against the timestamp of the last event in each signed range.
+   - `VerifySignatures(signatures []*HistorySignature, certificates []*SigningCertificate, events []*HistoryEvent) error` - walks the signature chain, resolves each signature's `certificate_index` to the corresponding `SigningCertificate`, recomputes the canonical digest of each referenced event range, verifies it against the stored `events_digest`, then checks the cryptographic signature against the certificate and verifies certificate validity against the timestamp of the last event in each signed range.
    - For propagated history: `VerifyPropagatedHistory(history *PropagatedHistory) error` - convenience wrapper that passes `history.events` and `history.signatures`.
    - For at-rest verification: called on workflow load with the stored `history_signatures` and `OldEvents`/`NewEvents`.
 
@@ -657,6 +688,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
        |                           |   history-000000 = e0   |                      |                      |
        |                           |   history-000001 = e1   |                      |                      |
        |                           |   history-000002 = e2   |                      |                      |
+       |                           |   sigcert-000000=cert0  |                      |                      |
        |                           |   signature-000000=sig0 |                      |                      |
        |                           |   metadata (lengths)    |                      |                      |
        |                           |                         |                      |                      |
@@ -701,7 +733,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 |---------|--------|------------|
 | **Serialization overhead** | History events must be canonicalized and serialized for digest computation. | Canonical form is computed once per signing. Events are already serialized for storage. |
 | **Cryptographic overhead** | SHA-256 hashing + Ed25519/ECDSA signing per event range. | Ed25519 signing is ~60,000 ops/sec on modern hardware. Negligible compared to workflow I/O. |
-| **Payload size increase** | Propagated history copies events into the message plus ~500 bytes per signature for signing metadata. At rest, only the metadata is added (no event duplication). | Configurable scope filters, depth limits, and size limits. Opt-in only. |
+| **Payload size increase** | Propagated history copies events into the message plus ~100 bytes per signature for signing metadata, plus ~1-2KB per unique certificate in the deduplicated certificate table. At rest, only the metadata is added (no event duplication). | Configurable scope filters, depth limits, and size limits. Opt-in only. |
 | **Verification overhead** | Chain verification requires validating each signature and its certificate. | O(n) where n = number of signatures (i.e., number of orchestrator executions/hops). Certificate validation can be cached. |
 | **Replay impact** | Propagated history is fixed at invocation time and does not change during replays, so it does not affect replay determinism. | No mitigation needed - this is a positive property. |
 
@@ -715,7 +747,7 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 
 4. **State store tampering**: Since `HistorySignature` entries are persisted in the state store, an attacker with direct state store access could attempt to modify history events. However, any modification would invalidate the signature's `events_digest`. The runtime can optionally verify the stored signature chain integrity when loading workflow state, recomputing the canonical digest of each referenced event range and checking it against the stored digest. This detects tampering at rest without requiring any event duplication.
 
-5. **Certificate rotation between executions**: A workflow may execute multiple times (due to replay), and the identity certificate may rotate between executions. Each signature is created with the certificate active at that execution's time. Verifiers check certificate validity against the last event's timestamp in each signed range, not the current time. Different signatures in the same workflow may use different certificates - this is expected and correct.
+5. **Certificate rotation between executions**: A workflow may execute multiple times (due to replay), and the identity certificate may rotate between executions. When a rotation is detected, a new `SigningCertificate` entry is appended to the certificate table. Each signature references the certificate that was active at signing time via `certificate_index`. Verifiers check certificate validity against the last event's timestamp in each signed range, not the current time. Different signatures in the same workflow may reference different certificate table entries - this is expected and correct.
 
 ### Feature Lifecycle Outline
 
@@ -804,7 +836,8 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
 | Replay determinism | Propagated history does not affect orchestrator replay |
 | At-rest signing persistence | Signed chunks persisted and loadable across workflow executions |
 | At-rest tamper detection | Modified events in state store detected on load when verification enabled |
-| Certificate rotation across executions | Different certs used for different chunks, all verifiable |
+| Certificate deduplication | Multiple signatures from same cert share one sigcert entry; rotation adds new entry |
+| Certificate rotation across executions | Different certs used for different chunks, all verifiable via certificate_index |
 | Workflow rehydration with signed state | Workflow loads correctly with history signatures in state |
 
 ## Completion Checklist
@@ -816,9 +849,10 @@ App A (Orchestrator)          Dapr Runtime A            State Store          Dap
   - [ ] History propagation in activity context
   - [ ] `PropagatedHistory` reader API
   - [ ] Chain-of-custody signing at state persistence time
-  - [ ] `HistorySignature` actor state key persistence (`signature-NNNNNN` keys)
-  - [ ] `WorkflowStateMetadata` extension (`signatureLength`, `historySigningEnabled`)
-  - [ ] State load/save in `wfenginestate.State` for signature entries
+  - [ ] `SigningCertificate` actor state key persistence (`sigcert-NNNNNN` keys)
+  - [ ] `HistorySignature` actor state key persistence (`signature-NNNNNN` keys) with `certificate_index`
+  - [ ] `WorkflowStateMetadata` extension (`signatureLength`, `signingCertificateLength`, `historySigningEnabled`)
+  - [ ] State load/save in `wfenginestate.State` for signing certificate and signature entries
   - [ ] Chain verification (at rest and on propagated history)
   - [ ] Canonical digest computation
 - [ ] Dapr runtime changes (`dapr/dapr`):
