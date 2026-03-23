@@ -435,7 +435,7 @@ Callers (SDK or user workflows) must not pass a caller-supplied timestamp or ran
 #### Built-in workflow orchestration flow
 
 ```
-<agent_name>_agent_workflow (DurableAgent)
+dapr.agents.<agent_name>.workflow (DurableAgent)
   └─ ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.ListTools", {mcp: "github-mcp"})
        └─ [daprd built-in dapr.mcp.<mcpserver-name>.ListTools orchestration]
             └─ ctx.CallActivity("list-tools", input)
@@ -444,18 +444,18 @@ Callers (SDK or user workflows) must not pass a caller-supplied timestamp or ran
                       ├─ dials MCP server via go-sdk
                       └─ returns []mcp.Tool as JSON
 
-<agent_name>_agent_workflow
+dapr.agents.<agent_name>.workflow
   └─ ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", {mcp: "github-mcp", tool: "search_code", arguments: {...}})
        └─ [daprd built-in dapr.mcp.<mcpserver-name>.CallTool orchestration]
             ├─ (if dapr.mcp.<mcpserver-name>.BeforeCall set)
             │    ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.BeforeCall, {mcpServer, tool, arguments})
-            │    → error returned? return CallToolResult{isError: true, content: [error]} to caller (no exception)
+            │    → error returned? return CallToolResult{isError: true, content: [error]} to caller
             ├─ ctx.CallActivity("call-tool", input)
             │    └─ [daprd built-in activity]
             │         ├─ looks up MCPServer CRD from CompStore
             │         ├─ dials MCP server, calls tool
             │         │    → auth failure (401/403, OAuth2 exchange, SPIFFE rejected)?
-            │         │         return CallToolResult{isError: true, content: [error]} to caller (no exception)
+            │         │         return CallToolResult{isError: true, content: [error]} to caller
             │         └─ returns tool result
             └─ (if dapr.mcp.<mcpserver-name>.AfterCall set)
                  ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.AfterCall, {mcpServer, tool, arguments, result})
@@ -464,9 +464,9 @@ Callers (SDK or user workflows) must not pass a caller-supplied timestamp or ran
 
 #### Error propagation contract
 
-All auth/identity errors — whether from `beforeCall` middleware or from the transport layer (OAuth2 token exchange failure, 401/403 from the MCP server, SPIFFE JWT rejection) — **must be returned as `CallToolResult{isError: true}`**, not as workflow exceptions.
+All auth/identity errors — whether from `beforeCall` middleware or from the transport layer (OAuth2 token exchange failure, 401/403 from the MCP server, SPIFFE JWT rejection) — **are returned as `CallToolResult{isError: true}`**, not as a workflow execution failure.
 
-This is required so the calling agent's execution loop receives a structured tool error it can forward to the LLM. The LLM can then reason about the denial (e.g. missing scope, wrong identity) and decide to retry with different parameters, request elevation, or surface the error to the user. A workflow exception would instead halt the agent loop.
+This is required so the calling agent's execution loop receives a structured tool error it can forward to the LLM. The LLM can then reason about the denial (e.g. missing scope, wrong identity) and decide to retry with different parameters, request elevation, or surface the error to the user. A workflow termination status of `FAILED` would instead halt the agent loop.
 
 The `content` field of the error result should carry a human-readable description, e.g.:
 
@@ -493,6 +493,7 @@ Transport-level errors follow the same shape:
 #### dapr-agents usage
 
 ```python
+# Import path subject to change
 from dapr_agents.tool.mcp.dapr_workflow_client import DaprMCPWorkflowClient
 
 # At agent startup (before workflow execution):
@@ -522,7 +523,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 ┌─────────────────────────────────────────────────────────---------------------┐
 │  User app (dapr-agents DurableAgent)                                         │
 │                                                                              │
-│  <agent_name>_agent_workflow                                                 │
+│  dapr.agents.<agent_name>.workflow                                                 │
 │    └─ call_child_workflow("dapr.mcp.<mcpserver-name>.ListTools", {mcp: ...}) │
 │    └─ call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool",  {mcp: ...}) │
 └────────────────────┬────────────────────────────────────---------------------┘
