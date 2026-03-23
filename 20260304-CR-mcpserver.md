@@ -325,8 +325,16 @@ type MCPServerSpec struct {
     Stdio    *MCPStdioSpec          `json:"stdio,omitempty"`
 }
 
+type MCPTransport string
+
+const (
+    MCPTransportStreamableHTTP MCPTransport = "streamable_http"
+    MCPTransportSSE            MCPTransport = "sse"
+    MCPTransportStdio          MCPTransport = "stdio"
+)
+
 type MCPEndpoint struct {
-    Transport       string            `json:"transport"`
+    Transport       MCPTransport      `json:"transport"`
     // Target is a one-of identifying the MCP server.
     // Only url is supported in v1. Future iterations add appID and httpEndpointName.
     Target          MCPEndpointTarget `json:"target"`
@@ -441,15 +449,45 @@ Callers (SDK or user workflows) must not pass a caller-supplied timestamp or ran
        └─ [daprd built-in dapr.mcp.<mcpserver-name>.CallTool orchestration]
             ├─ (if dapr.mcp.<mcpserver-name>.BeforeCall set)
             │    ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.BeforeCall, {mcpServer, tool, arguments})
-            │    → error returned? abort, propagate error to caller
+            │    → error returned? return CallToolResult{isError: true, content: [error]} to caller (no exception)
             ├─ ctx.CallActivity("call-tool", input)
             │    └─ [daprd built-in activity]
             │         ├─ looks up MCPServer CRD from CompStore
             │         ├─ dials MCP server, calls tool
+            │         │    → auth failure (401/403, OAuth2 exchange, SPIFFE rejected)?
+            │         │         return CallToolResult{isError: true, content: [error]} to caller (no exception)
             │         └─ returns tool result
             └─ (if dapr.mcp.<mcpserver-name>.AfterCall set)
                  ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.AfterCall, {mcpServer, tool, arguments, result})
                  → error logged, result still returned to caller
+```
+
+#### Error propagation contract
+
+All auth/identity errors — whether from `beforeCall` middleware or from the transport layer (OAuth2 token exchange failure, 401/403 from the MCP server, SPIFFE JWT rejection) — **must be returned as `CallToolResult{isError: true}`**, not as workflow exceptions.
+
+This is required so the calling agent's execution loop receives a structured tool error it can forward to the LLM. The LLM can then reason about the denial (e.g. missing scope, wrong identity) and decide to retry with different parameters, request elevation, or surface the error to the user. A workflow exception would instead halt the agent loop.
+
+The `content` field of the error result should carry a human-readable description, e.g.:
+
+```json
+{
+  "isError": true,
+  "content": [
+    { "type": "text", "text": "identity denied: agent 'my-agent' is not permitted to call tool 'payments.refund' (beforeCall: payments-authz-workflow)" }
+  ]
+}
+```
+
+Transport-level errors follow the same shape:
+
+```json
+{
+  "isError": true,
+  "content": [
+    { "type": "text", "text": "auth failure calling payments-mcp: 401 Unauthorized (OAuth2 token exchange failed)" }
+  ]
+}
 ```
 
 #### dapr-agents usage
@@ -525,6 +563,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 - Sampling support added
 - `endpoint.appID` — route to a Dapr-managed MCP server by app ID; sidecar constructs the service invocation URL automatically
 - `endpoint.httpEndpointName` — reference an existing `HTTPEndpoint` resource by name; MCP worker reads its base URL and resolved headers from the CompStore, eliminating duplication of auth/header config
+- Streaming MCPServer discovery for agents — rather than requiring `client.connect("github-mcp")` at startup, agents could watch the Operator's `WatchMCPServer` stream and auto-discover or reload tool schemas as new `MCPServer` CRDs are applied, without restarting the agent workflow
 
 **Compatibility:**
 - The `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflow names are stable API. Agents coded against them will not need changes as internal implementation evolves (e.g., elicitation support is added inside the workflow without changing the input/output contract).
@@ -535,6 +574,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 
 **Functional:**
 - A `DurableAgent` can call tools on a remote `streamable_http` MCP server declared as a `MCPServer` CRD, with the MCP tool call durably recorded in workflow history
+- A standard (non-durable) MCP client can also call tools on a `MCPServer`-declared server; internally the call is routed through the built-in workflow orchestration, providing durability and audit without requiring the client to be workflow-aware
 - If daprd restarts mid tool call, the activity retries automatically since it's within a workflow
 - `MCPServer` CRDs are hot-reloaded when updated in Kubernetes (no sidecar restart required)
 - Secret store references in `MCPServer` resolve correctly via the referenced secret store
@@ -543,6 +583,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 **Compatibility:**
 - No changes required to existing Dapr resources
 - Works in both Kubernetes mode and standalone (self-hosted) mode
+- daprd starts successfully when the `MCPServer` CRD is not installed; the absence of the CRD is treated as "no MCPServer resources" and produces no startup error (same behaviour expected of `HTTPEndpoint` and `Resiliency`)
 
 ---
 
