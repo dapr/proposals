@@ -27,7 +27,9 @@ through lexical/structured matching or geometric proximity for example.
 
 Other providers with existing component implementations may be leveraged.
 
-## API / Protos
+## HTTP API / Protos
+
+A HTTP api will be exposed mirroring the below.
 
 ### Search
 
@@ -218,4 +220,41 @@ message BatchQueryVectorsRequestAlpha1 {
 message BatchQueryVectorsResponseAlpha1 {
   repeated QueryVectorsResponseAlpha1 results = 1;
 }
+```
+
+## Consumption Examples (Go)
+
+```go
+// Search
+hits, err := client.SearchAlpha1(ctx, &client.SearchRequestAlpha1{
+    StoreName: "meili-products",
+    Index:         "products",
+    Query:         &client.SearchRequestAlpha1Text{Text: "wireless headphones"},
+    SearchFields:  []string{"title", "description"},
+    TopK:          10,
+})
+
+// Vector query
+matches, err := client.QueryVectorsAlpha1(ctx, &client.QueryVectorsRequestAlpha1{
+    StoreName: "meili-docs",
+    Collection:    "manuals",
+    Query: &client.QueryVectorsRequestAlpha1_Vector{
+        Vector: &client.VectorRecord{Values: dense},
+    },
+    SparseQuery:    &client.SparseVector{Indices: sparseIdx, Values: sparseVal},
+    Alpha:          proto.Float32(0.7),
+    TopK:           5,
+    IncludePayload: true,
+    ScoreThreshold: proto.Float32(0.6),
+})
+
+// Batch query
+batch, err := client.BatchQueryVectorsAlpha1(ctx, &client.BatchQueryVectorsRequestAlpha1{
+    StoreName: "meili-docs",
+    Collection:    "manuals",
+    Queries: []*client.QueryVectorsRequestAlpha1{
+        {Query: &client.QueryVectorsRequestAlpha1_Vector{Vector: &client.VectorRecord{Values: q1}}, TopK: 5},
+        {Query: &client.QueryVectorsRequestAlpha1_Vector{Vector: &client.VectorRecord{Values: q2}}, TopK: 5},
+    },
+})
 ```
