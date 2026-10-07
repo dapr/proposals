@@ -2,7 +2,7 @@
 
 * Author(s): Samantha Coyle (@sicoyle)
 * State: Ready for Implementation
-* Updated: 03/04/2026
+* Updated: 04/02/2026
 
 ## Overview
 
@@ -77,7 +77,7 @@ or in this [release note agent](https://github.com/sicoyle/release-note-agent).
 - Runtime loading in `loadMCPServers()` during daprd startup, with hot-reload via Operator watch
 - Built-in `dapr.mcp.<mcpserver-name>.ListTools` and `dapr.mcp.<mcpserver-name>.CallTool` workflows defined and registered with daprd's wfengine using the `modelcontextprotocol/go-sdk`
     - This is a fundamental change that brings the idea of a Managed Workflow in essence into the runtime.
-- Built-in MCP authorization / per-tool RBAC — `middleware.beforeCall` / `middleware.afterCall` workflow hooks on `MCPServerSpec` provide extensibility points for custom authz workflows — user-registered workflows invoked before and after each `dapr.mcp.<mcpserver-name>.CallTool` (and `dapr.mcp.<mcpserver-name>.ListTools`) execution; `beforeCall` errors abort the call, `afterCall` errors are logged and the result is still returned (the MCP call already ran)
+- Built-in MCP middleware pipelines — `middleware.beforeCallTool` / `middleware.afterCallTool` / `middleware.beforeListTools` / `middleware.afterListTools` hook arrays on `MCPServerSpec` provide ordered extensibility points for custom workflows (RBAC, audit, sanitization, rate limiting). Each hook is an `MCPMiddlewareHook` containing a `workflow` (with optional `appID` for remote invocation). "before" hooks abort the chain on error; "after" hooks log errors without affecting the result
 - Transport support: `streamable_http`, `sse`, `stdio`
 
 > NOTE: I did choose the [official modelcontextprotocol go-sdk pkg](https://github.com/modelcontextprotocol/go-sdk); however, there is the [Mark3Labs alternative](https://github.com/mark3labs/mcp-go) which is more "popular" and established.
@@ -173,42 +173,38 @@ spec:
       repo: https://github.com/company/payments-mcp
 
   endpoint:
-    transport: sse
-    # protocolVersion pins the MCP spec version the server implements.
-    # Used by the go-sdk client to negotiate correctly.
-    protocolVersion: "2026-03-26"
-    # target is a one-of: only url is supported in v1.
-    # Future iterations add appID and httpEndpointName as alternatives.
-    target:
+    sse:
       url: http://payments-mcp.prod.svc.cluster.local/sse
+      # protocolVersion pins the MCP spec version the server implements.
+      protocolVersion: "2026-03-26"
 
-  # Auth — pick one option; comment out the others.
+      # Auth — pick one option; comment out the others.
 
-  # Option 1: OAuth2 client credentials (production; secret resolved via auth.secretStore)
-  auth:
-    secretStore: kubernetes
-    oauth2:
-      issuer: https://auth.company.com
-      audience: mcp://payments
-      scopes:
-        - payments.read
-        - payments.refund
-      secretKeyRef:
-        name: payments-mcp-oauth
-        key: clientSecret
+      # Option 1: OAuth2 client credentials (production; secret resolved via auth.secretStore)
+      auth:
+        secretStore: kubernetes
+        oauth2:
+          issuer: https://auth.company.com
+          audience: mcp://payments
+          scopes:
+            - payments.read
+            - payments.refund
+          secretKeyRef:
+            name: payments-mcp-oauth
+            key: clientSecret
 
-  # Option 2: SPIFFE workload identity — Sentry issues an SVID; no secret needed.
-  # auth:
-  #   spiffe:
-  #     jwt:
-  #       header: Authorization
-  #       prefix: "Bearer "
-  #       audience: mcp://payments
+      # Option 2: SPIFFE workload identity — Sentry issues an SVID; no secret needed.
+      # auth:
+      #   spiffe:
+      #     jwt:
+      #       header: Authorization
+      #       headerValuePrefix: "Bearer "
+      #       audience: mcp://payments
 
-  # Option 3: env var injection — local dev or stdio; no secret store required.
-  # headers:
-  #   - name: Authorization
-  #     envRef: PAYMENTS_MCP_TOKEN
+      # Option 3: env var injection — local dev or stdio; no secret store required.
+      # headers:
+      #   - name: Authorization
+      #     envRef: PAYMENTS_MCP_TOKEN
 
 scopes:
   - my-agent-app
@@ -224,19 +220,18 @@ metadata:
   namespace: default
 spec:
   endpoint:
-    transport: streamable_http
-    protocolVersion: "2025-03-XX"
-    target:
+    streamableHTTP:
       url: https://api.githubcopilot.com/mcp/
-  # Headers are resolved via auth.secretStore (defaults to kubernetes).
-  # Bearer tokens are expressed as a plain Authorization header — no special bearer field.
-  headers:
-    - name: Authorization
-      secretKeyRef:
-        name: github-token
-        key: token
-  auth:
-    secretStore: kubernetes
+      protocolVersion: "2025-03-XX"
+      # Headers are resolved via auth.secretStore (defaults to kubernetes).
+      # Bearer tokens are expressed as a plain Authorization header.
+      headers:
+        - name: Authorization
+          secretKeyRef:
+            name: github-token
+            key: token
+      auth:
+        secretStore: kubernetes
 scopes:
   - my-agent-app
 ```
@@ -250,16 +245,15 @@ metadata:
   name: local-tools
 spec:
   endpoint:
-    transport: stdio
-  stdio:
-    command: python
-    args: ["-m", "my_tools.py"]
-    env:
-      - name: EXAMPLE
-        value: EXAMPLE
+    stdio:
+      command: python
+      args: ["-m", "my_tools.py"]
+      env:
+        - name: EXAMPLE
+          value: EXAMPLE
 ```
 
-MCPServer with `beforeCall` authz and `afterCall` audit hooks:
+MCPServer with `beforeCallTool` authz and `afterCallTool` audit hook pipelines:
 
 ```yaml
 apiVersion: dapr.io/v1alpha1
@@ -269,34 +263,97 @@ metadata:
   namespace: prod
 spec:
   endpoint:
-    transport: streamable_http
-    target:
+    streamableHTTP:
       url: https://payments.internal/mcp
   middleware:
-    # beforeCall: invoked before every dapr.mcp.<mcpserver-name>.ListTools and dapr.mcp.<mcpserver-name>.CallTool.
-    # If this workflow returns an error, the tool call is aborted.
-    # Example use: verify the calling agent's identity and check per-tool permissions.
-    beforeCall: payments-authz-workflow
-    # afterCall: invoked after every dapr.mcp.<mcpserver-name>.ListTools and dapr.mcp.<mcpserver-name>.CallTool, regardless of result.
-    # Errors from this workflow are logged but do NOT affect what is returned to the caller —
-    # the MCP call has already completed and any side effects have occurred.
-    # Example use: write an immutable audit record of tool invocations and results.
-    afterCall: payments-audit-workflow
+    # Hooks are executed in array order. Errors in "before" hooks abort the chain.
+    beforeCallTool:
+      # Example: rate limit, then RBAC check.
+      - workflow:
+          workflowName: rate-limiter
+      - workflow:
+          workflowName: payments-authz-workflow
+    afterCallTool:
+      - workflow:
+          workflowName: payments-audit-workflow
+          appID: remote-audit-app  # optional: run on a remote Dapr app
 scopes:
   - my-agent-app
 ```
 
-The `beforeCall` workflow receives:
+The `beforeCallTool` workflow receives:
 ```json
-{ "mcpServer": "payments-mcp-guarded", "tool": "refund_payment", "arguments": { "amount": 50 } }
+{ "mcpServer": "payments-mcp-guarded", "toolName": "refund_payment", "arguments": { "amount": 50 } }
 ```
 Return any non-nil error to abort; return nil to allow the call to proceed.
 
-The `afterCall` workflow receives:
+The `afterCallTool` workflow receives:
 ```json
-{ "mcpServer": "payments-mcp-guarded", "tool": "refund_payment", "arguments": { "amount": 50 }, "result": { ... } }
+{ "mcpServer": "payments-mcp-guarded", "toolName": "refund_payment", "arguments": { "amount": 50 }, "result": { ... } }
 ```
 The return value is ignored. Internal errors (e.g. audit store unavailable) should be handled within the workflow itself.
+
+#### Middleware scenarios
+
+The middleware pipeline is designed to support a range of use cases. Below are
+concrete scenarios that informed the API design and can guide future extensions.
+
+**Per-tool RBAC (beforeCallTool)**
+An enterprise wants to check if the calling agent has permission to invoke
+`payments.refund`. A `beforeCallTool` workflow looks up the agent identity and
+tool name against a policy store. If denied, the workflow returns an error and
+the tool call is aborted with `CallToolResult{isError: true}`.
+
+**Audit logging (afterCallTool)**
+Write every tool invocation and result to an immutable audit store. An
+`afterCallTool` workflow receives the tool name, arguments, and result, and
+writes an audit record. Errors in the audit workflow are logged but do not
+affect the result returned to the caller.
+
+**Input validation (beforeCallTool)**
+Reject tool arguments that contain disallowed PII or fail sanitization rules
+before they reach the MCP server. A `beforeCallTool` workflow inspects the
+arguments and returns an error to abort if validation fails.
+
+**Result enrichment (afterCallTool)**
+Annotate tool results with metadata such as latency, cost, or model version.
+An `afterCallTool` workflow receives the result and writes enriched metadata to
+a state store or publishes to a topic.
+
+**Rate limiting (beforeCallTool)**
+Throttle how often an agent can call a specific tool. A `beforeCallTool`
+workflow checks a counter in a state store and returns an error if the limit is
+exceeded.
+
+**Tool discovery filtering (beforeListTools / afterListTools)**
+Filter which tools an agent can discover based on identity or context. A
+`beforeListTools` hook could check permissions before the list is fetched, or
+an `afterListTools` hook could filter the result set.
+
+**Chained middleware**
+Multiple hooks can be composed in a pipeline. For example, rate limiting
+followed by RBAC:
+```yaml
+middleware:
+  beforeCallTool:
+    - workflow:
+        workflowName: rate-limiter
+    - workflow:
+        workflowName: rbac-check
+        appID: auth-service
+```
+Hooks execute in array order. If `rate-limiter` returns an error, `rbac-check`
+is never invoked.
+
+**Future hook types**
+The `MCPMiddlewareHook` struct is a one-of and currently only supports
+`workflow`. Future extensions could include:
+- **HTTP callback** (`httpCallback`): POST to a URL instead of invoking a
+  workflow, for stateless checks like RBAC lookups.
+- **CEL/Rego policy** (`policy`): Inline policy evaluation without a workflow
+  round-trip (e.g. `cel: "request.toolName != 'dangerous_tool'"`).
+- **Built-in rules**: Declarative fields like `allowedTools`, `deniedTools`,
+  `maxArgumentSize` that require no user code.
 
 #### Go types (`pkg/apis/mcp/v1alpha1/types.go`)
 
@@ -310,93 +367,94 @@ type MCPServer struct {
 }
 
 type MCPServerSpec struct {
-    Catalog  *MCPServerCatalog      `json:"catalog,omitempty"`
-    Endpoint MCPEndpoint            `json:"endpoint"`
-    // Headers are injected on all outbound HTTP transport requests to the MCP server:
-    // once per SSE connection handshake, or per-request for streamable_http.
-    // Not applicable when endpoint.transport is "stdio".
-    // Each entry follows the same NameValuePair contract used by HTTPEndpoint:
-    // plain value, secretKeyRef, or envRef. Secret resolution uses auth.secretStore.
-    Headers  []common.NameValuePair `json:"headers,omitempty"`
-    Auth     MCPAuth                `json:"auth,omitempty"`
+    Catalog    *MCPServerCatalog `json:"catalog,omitempty"`
+    Endpoint   MCPEndpoint       `json:"endpoint"`
     // Middleware defines optional workflow hooks invoked around each tool call.
-    Middleware *MCPMiddleware        `json:"middleware,omitempty"`
-    // Stdio is only valid when endpoint.transport is "stdio".
-    Stdio    *MCPStdioSpec          `json:"stdio,omitempty"`
+    Middleware *MCPMiddleware    `json:"middleware,omitempty"`
 }
 
-type MCPTransport string
-
-const (
-    MCPTransportStreamableHTTP MCPTransport = "streamable_http"
-    MCPTransportSSE            MCPTransport = "sse"
-    MCPTransportStdio          MCPTransport = "stdio"
-)
-
+// MCPEndpoint describes how to reach the MCP server.
+// Exactly one of StreamableHTTP, SSE, or Stdio must be set.
 type MCPEndpoint struct {
-    Transport       MCPTransport      `json:"transport"`
-    // Target is a one-of identifying the MCP server.
-    // Only url is supported in v1. Future iterations add appID and httpEndpointName.
-    Target          MCPEndpointTarget `json:"target"`
-    ProtocolVersion string            `json:"protocolVersion,omitempty"`
-    Timeout         string            `json:"timeout,omitempty"`
+    StreamableHTTP *MCPStreamableHTTP `json:"streamableHTTP,omitempty"`
+    SSE            *MCPSSE            `json:"sse,omitempty"`
+    Stdio          *MCPStdio          `json:"stdio,omitempty"`
 }
 
-// MCPEndpointTarget is a one-of: set exactly one field.
-type MCPEndpointTarget struct {
-    // URL is the raw endpoint URL of the MCP server.
-    URL string `json:"url,omitempty"`
-    // AppID and HTTPEndpointName are reserved for future iterations.
+// MCPStreamableHTTP configures the streamable_http transport.
+type MCPStreamableHTTP struct {
+    URL             string                 `json:"url"`
+    ProtocolVersion *string                `json:"protocolVersion,omitempty"`
+    Timeout         *metav1.Duration       `json:"timeout,omitempty"`
+    Headers         []common.NameValuePair `json:"headers,omitempty"`
+    Auth            *MCPAuth               `json:"auth,omitempty"`
 }
 
-type MCPStdioSpec struct {
+// MCPSSE configures the legacy SSE transport.
+type MCPSSE struct {
+    URL             string                 `json:"url"`
+    ProtocolVersion *string                `json:"protocolVersion,omitempty"`
+    Timeout         *metav1.Duration       `json:"timeout,omitempty"`
+    Headers         []common.NameValuePair `json:"headers,omitempty"`
+    Auth            *MCPAuth               `json:"auth,omitempty"`
+}
+
+// MCPStdio configures the stdio subprocess transport.
+type MCPStdio struct {
     Command string                 `json:"command"`
     Args    []string               `json:"args,omitempty"`
     Env     []common.NameValuePair `json:"env,omitempty"`
 }
 
 // MCPAuth configures authentication for the MCP server connection.
-// OAuth2 and SPIFFE are only meaningful when endpoint.target.url is set.
-// When target.appID is used, Dapr handles mTLS/SPIFFE automatically.
-// When target.httpEndpointName is used, auth is delegated to that resource.
+// Nested under the HTTP transport (StreamableHTTP or SSE).
 type MCPAuth struct {
     // SecretStore names the Dapr secret store used to resolve secretKeyRef entries
-    // (in spec.headers and OAuth2 credentials). Defaults to "kubernetes".
-    SecretStore string       `json:"secretStore,omitempty"`
-    OAuth2      *MCPOAuth2   `json:"oauth2,omitempty"`
-    SPIFFE      *SPIFFESpec  `json:"spiffe,omitempty"`
+    // in transport headers. Defaults to "kubernetes".
+    SecretStore *string     `json:"secretStore,omitempty"`
+    OAuth2      *MCPOAuth2  `json:"oauth2,omitempty"`
+    SPIFFE      *SPIFFE     `json:"spiffe,omitempty"`
 }
 
 type MCPOAuth2 struct {
     Issuer       string               `json:"issuer"`
-    Audience     string               `json:"audience,omitempty"`
+    Audience     *string              `json:"audience,omitempty"`
     Scopes       []string             `json:"scopes,omitempty"`
     SecretKeyRef *common.SecretKeyRef `json:"secretKeyRef,omitempty"`
 }
 
-type SPIFFESpec struct {
+type SPIFFE struct {
     //+optional
-    JWT *SPIFFEJWTSpec `json:"jwt,omitempty"`
+    JWT *SPIFFEJWT `json:"jwt,omitempty"`
 }
 
-type SPIFFEJWTSpec struct {
-    Header   string  `json:"header" validate:"required"`
-    Audience string  `json:"audience" validate:"required"`
+type SPIFFEJWT struct {
+    Header            string  `json:"header" validate:"required"`
+    Audience          string  `json:"audience" validate:"required"`
     //+optional
-    Prefix   *string `json:"prefix,omitempty"`
+    HeaderValuePrefix *string `json:"headerValuePrefix,omitempty"`
 }
 
+// MCPMiddleware defines optional hook pipelines invoked around tool and list operations.
+// Hooks are executed in array order.
 type MCPMiddleware struct {
-    // BeforeCall names a user-registered workflow to invoke before each dapr.mcp.<mcpserver-name>.ListTools/CallTool execution.
-    // Receives the MCPServer name, tool name (empty for ListTools), and arguments as input.
-    // If this workflow returns an error, the tool call is aborted and the error is returned to the caller.
-    BeforeCall string `json:"beforeCall,omitempty"`
-    // AfterCall names a user-registered workflow to invoke after each dapr.mcp.<mcpserver-name>.ListTools/CallTool execution.
-    // Receives the MCPServer name, tool name, arguments, and result as input.
-    // Errors from this workflow are logged but do not affect the result returned to the caller —
-    // the MCP call has already completed. AfterCall workflows intended for audit use should
-    // handle their own internal errors rather than propagating them.
-    AfterCall  string `json:"afterCall,omitempty"`
+    BeforeCallTool  []MCPMiddlewareHook `json:"beforeCallTool,omitempty"`
+    AfterCallTool   []MCPMiddlewareHook `json:"afterCallTool,omitempty"`
+    BeforeListTools []MCPMiddlewareHook `json:"beforeListTools,omitempty"`
+    AfterListTools  []MCPMiddlewareHook `json:"afterListTools,omitempty"`
+}
+
+// MCPMiddlewareHook is a single middleware hook. Exactly one field must be set.
+type MCPMiddlewareHook struct {
+    Workflow *MCPMiddlewareWorkflow `json:"workflow,omitempty"`
+    // Future: HTTPCallback, Policy, etc.
+}
+
+// MCPMiddlewareWorkflow identifies a workflow to invoke as a middleware hook.
+type MCPMiddlewareWorkflow struct {
+    WorkflowName string  `json:"workflowName"`
+    // AppID targets the workflow on a remote Dapr app. When unset, runs locally.
+    AppID        *string `json:"appID,omitempty"`
 }
 
 type MCPServerCatalog struct {
@@ -447,9 +505,9 @@ dapr.agents.<agent_name>.workflow (DurableAgent)
 dapr.agents.<agent_name>.workflow
   └─ ctx.call_child_workflow("dapr.mcp.<mcpserver-name>.CallTool", {mcp: "github-mcp", tool: "search_code", arguments: {...}})
        └─ [daprd built-in dapr.mcp.<mcpserver-name>.CallTool orchestration]
-            ├─ (if dapr.mcp.<mcpserver-name>.BeforeCall set)
-            │    ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.BeforeCall, {mcpServer, tool, arguments})
-            │    → error returned? return CallToolResult{isError: true, content: [error]} to caller
+            ├─ for each hook in middleware.beforeCallTool:
+            │    ctx.call_child_workflow(hook.workflow.workflowName, {mcpServer, toolName, arguments})
+            │    → error returned? chain stops, return CallToolResult{isError: true, content: [error]}
             ├─ ctx.CallActivity("call-tool", input)
             │    └─ [daprd built-in activity]
             │         ├─ looks up MCPServer CRD from CompStore
@@ -457,14 +515,14 @@ dapr.agents.<agent_name>.workflow
             │         │    → auth failure (401/403, OAuth2 exchange, SPIFFE rejected)?
             │         │         return CallToolResult{isError: true, content: [error]} to caller
             │         └─ returns tool result
-            └─ (if dapr.mcp.<mcpserver-name>.AfterCall set)
-                 ctx.call_child_workflow(dapr.mcp.<mcpserver-name>.AfterCall, {mcpServer, tool, arguments, result})
-                 → error logged, result still returned to caller
+            └─ for each hook in middleware.afterCallTool:
+                 ctx.call_child_workflow(hook.workflow.workflowName, {mcpServer, toolName, arguments, result})
+                 → errors logged, result still returned to caller
 ```
 
 #### Error propagation contract
 
-All auth/identity errors — whether from `beforeCall` middleware or from the transport layer (OAuth2 token exchange failure, 401/403 from the MCP server, SPIFFE JWT rejection) — **are returned as `CallToolResult{isError: true}`**, not as a workflow execution failure.
+All auth/identity errors — whether from `beforeCallTool` middleware hooks or from the transport layer (OAuth2 token exchange failure, 401/403 from the MCP server, SPIFFE JWT rejection) — **are returned as `CallToolResult{isError: true}`**, not as a workflow execution failure.
 
 This is required so the calling agent's execution loop receives a structured tool error it can forward to the LLM. The LLM can then reason about the denial (e.g. missing scope, wrong identity) and decide to retry with different parameters, request elevation, or surface the error to the user. A workflow termination status of `FAILED` would instead halt the agent loop.
 
@@ -474,7 +532,7 @@ The `content` field of the error result should carry a human-readable descriptio
 {
   "isError": true,
   "content": [
-    { "type": "text", "text": "identity denied: agent 'my-agent' is not permitted to call tool 'payments.refund' (beforeCall: payments-authz-workflow)" }
+    { "type": "text", "text": "identity denied: agent 'my-agent' is not permitted to call tool 'payments.refund' (beforeCallTool: payments-authz-workflow)" }
   ]
 }
 ```
@@ -598,7 +656,7 @@ if isinstance(tool_obj, WorkflowContextInjectedTool):
 - [ ] Processor: `pkg/runtime/processor/mcp.go` — `AddPendingMCPServer`, `processMCPServers`; extend `processor.go` with channel and goroutine
 - [ ] Operator API: `pkg/operator/api/mcp.go` — List, Get, streaming Watch; wire informer in `api.go`
 - [ ] Runtime: `loadMCPServers()`, `flushOutstandingMCPServers()`, hot-reload watch subscription in `pkg/runtime/runtime.go`
-- [ ] Built-in MCP worker: `pkg/runtime/mcp/worker.go`, `transport.go`, `types.go` — `dapr.mcp.<mcpserver-name>.ListTools` + `dapr.mcp.<mcpserver-name>.CallTool` orchestrations and activities using `modelcontextprotocol/go-sdk`; include `beforeCall`/`afterCall` middleware hook invocations in both orchestrations with the abort-on-error / log-and-continue semantics described above
+- [ ] Built-in MCP worker: `pkg/runtime/mcp/worker.go`, `transport.go`, `types.go` — `dapr.mcp.<mcpserver-name>.ListTools` + `dapr.mcp.<mcpserver-name>.CallTool` orchestrations and activities using `modelcontextprotocol/go-sdk`; include `beforeCallTool`/`afterCallTool`/`beforeListTools`/`afterListTools` middleware hook pipelines executed in array order with abort-on-error (before) / log-and-continue (after) semantics
 - [ ] WFEngine activation: extend wfengine startup condition so that the presence of any loaded MCPServer manifest also triggers the workflow runtime (in addition to the existing workflow-client-connected trigger) — `pkg/runtime/runtime.go`
 - [ ] Workflow router: add a router on the sidecar-side workflow client that dispatches `dapr.mcp.*` workflow names to the built-in MCP worker and all other names to the user app's registered worker — `pkg/runtime/wfengine/` or `pkg/runtime/wfruntime/`
 - [ ] WFEngine integration: start built-in MCP worker in `pkg/runtime/wfengine/wfengine.go`
