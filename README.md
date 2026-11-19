@@ -1,5 +1,7 @@
 # Dapr Proposals
 
+[Dapr](https://github.com/dapr/dapr) is a portable, event-driven runtime that gives developers APIs for building resilient, distributed applications; see the [Dapr documentation](https://docs.dapr.io) to learn more.
+
 ## Introduction
 
 This repository stores proposals and designs for new features in Dapr (i.e not bug fixes or minor changes) with the intention of improving visibility, historical record-keeping and maintaining a consistent process.
@@ -11,12 +13,65 @@ As mentioned above, any significant change that needs design and a conversation 
 * New Dapr building blocks
 * New APIs or breaking API changes (especially to a non-alpha component)
 
+## Proposal index
+
+Proposals in the root of this repository, grouped by area. Dates and flags come from each file name (see [Proposal name format](#proposal-name-format)).
+
+### Workflow, actors and scheduler
+
+| Date | Title | Flags | Link |
+|------|-------|-------|------|
+| Legacy (0012) | Distributed Scheduler Building Block and Service | BIRS | [0012-BIRS-distributed-scheduler.md](0012-BIRS-distributed-scheduler.md) |
+| 2024-09-19 | Scheduler Job Failure Policy | None | [20240919-scheduler-failure-policy.md](20240919-scheduler-failure-policy.md) |
+| 2025-03-20 | Multi-App Workflows | RS | [20250320-RS-multi-app-workflows.md](20250320-RS-multi-app-workflows.md) |
+| 2025-04-04 | Workflow: Rerun from Activity | RS | [20250404-RS-workflow-rerun-from-activity.md](20250404-RS-workflow-rerun-from-activity.md) |
+| 2025-04-29 | Scheduler Broadcast Job Type | RS | [20250429-RS-scheduler-broadcast-job-type.md](20250429-RS-scheduler-broadcast-job-type.md) |
+| 2025-10-22 | Consolidate Placement into Scheduler, Improve Actors and Workflows Reliability and Performance | S | [20251022-S-placementV2.md](20251022-S-placementV2.md) |
+| 2025-10-28 | Workflow Patching and Versioning | BRS | [20251028-BRS-workflow-versioning.md](20251028-BRS-workflow-versioning.md) |
+| 2026-03-18 | Workflow External Event Timer Tracking | RS | [20260318-RS-workflow-external-event-timer-tracking.md](20260318-RS-workflow-external-event-timer-tracking.md) |
+
+### Building blocks and APIs
+
+| Date | Title | Flags | Link |
+|------|-------|-------|------|
+| Legacy (0013) | PubSub Subscription Streaming | RS | [0013-RS-pubsub-subscription-streaming.md](0013-RS-pubsub-subscription-streaming.md) |
+| 2023-03-27 | Crypto(graphy) building block | RCBS | [20230327-RCBS-Crypto-building-block.md](20230327-RCBS-Crypto-building-block.md) |
+| 2023-04-06 | External Service Invocation | B | [20230406-B-external-service-invocation.md](20230406-B-external-service-invocation.md) |
+| 2023-05-11 | Dapr Error Handling/Codes | BCIRS | [20230511-BCIRS-error-handling-codes.md](20230511-BCIRS-error-handling-codes.md) |
+| 2024-06-18 | Conversation building block | RCBS | [20240618-RCBS-Conversation-building-block.md](20240618-RCBS-Conversation-building-block.md) |
+| 2026-03-04 | MCPServer: A First-Class Dapr Resource for Durable MCP Server Integration | CR | [20260304-CR-mcpserver.md](20260304-CR-mcpserver.md) |
+
+### Runtime, security and resiliency
+
+| Date | Title | Flags | Link |
+|------|-------|-------|------|
+| 2022-11-21 | Pluggable components injector | R | [20221121-R-pluggable-components-injector.md](20221121-R-pluggable-components-injector.md) |
+| 2023-10-24 | Dapr Trust Distribution | CIR | [20231024-CIR-trust-distribution.md](20231024-CIR-trust-distribution.md) |
+| 2024-05-17 | HTTP Metrics Path Matching | R | [20240517-R-http-metrics-path-matching.md](20240517-R-http-metrics-path-matching.md) |
+| 2024-09-17 | Resiliency Policy Error Code Retries | BR | [20240917-BR-resiliency-error-code-retries.md](20240917-BR-resiliency-error-code-retries.md) |
+
+### SDKs and CLI
+
+| Date | Title | Flags | Link |
+|------|-------|-------|------|
+| 2022-11-30 | Run multiple applications with Dapr sidecars | I | [20221130-I-enhance-dapr-run-multiple-apps.md](20221130-I-enhance-dapr-run-multiple-apps.md) |
+| 2023-07-14 | Resiliency in Dapr SDKs | S | [20230714-S-sdk-resiliency.md](20230714-S-sdk-resiliency.md) |
+| 2023-09-18 | Unify the `DAPR_API_TOKEN` env variable across all SDKs | S | [20230918-S-unified-api-token-env-variable.md](20230918-S-unified-api-token-env-variable.md) |
+| 2024-05-08 | Dapr endpoint env and TLS support in SDKs | S | [20240508-S-sidecar-endpoint-tls.md](20240508-S-sidecar-endpoint-tls.md) |
+
+### Proposal process
+
+| Date | Title | Flags | Link |
+|------|-------|-------|------|
+| 2022-10-25 | Improving the Dapr proposal process | P | [20221025-P-proposal-process.md](20221025-P-proposal-process.md) |
+| 2023-06-27 | Cross SDK changes approval | P | [20230627-P-proposal-sdk-approval.md](20230627-P-proposal-sdk-approval.md) |
+
 ## How do I create a proposal?
 
 1. Create a fork of this repository.
 2. Copy the proposal template [templates/proposal.md](templates/proposal.md) following the format outlined below.
 3. Edit the template, filling it in with the proposal (for guides, see information in `guides/`)
-5. Submit a PR to `dapr/proposals` for community review.
+4. Submit a PR to `dapr/proposals` for community review.
 
 ## Proposal name format
 
@@ -35,6 +90,8 @@ Where *YYYY* is a 4-digit year, MM for 2-digit month and DD for 2-digit day of w
 
 So, for example, a proposal to create a new building block, such as the workflow building block, might be something like `20240102-BRS-workflow-building-block.md`, whereas a change to the actor system, which does not require any changes to the SDKs themselves, would be something like `20240103-R-actor-reminder-system.md`
 
+A few older proposals predate this format: `0012-BIRS-distributed-scheduler.md` and `0013-RS-pubsub-subscription-streaming.md` use legacy sequential numbering instead of a date, and `20240919-scheduler-failure-policy.md` has no flags. New proposals should use the format above.
+
 ## Proposal Process
 
 * The proposal will be opened as a PR against this repository
@@ -50,7 +107,7 @@ To accept a proposal, the maintainers of the relevant repository must vote using
 
 ## Feature lifecycle outline
 
-Features in Dapr have a lifecycle (e.g [Components](https://docs.dapr.io/operations/components/certification-lifecycle/)) and, as such, should have a defined set of milestones / requirements for progression between the lifecycle phases. For example, can a user expect from a feature when it is Alpha quality? Once that is released, what is the plan to progress from Alpha to Beta, and the subsequent expectations? What is the expectation when this feature becomes Stable? It is important to identify what functionality or perfomance guarantees we are making to users of Dapr when adding something new.
+Features in Dapr have a lifecycle (e.g [Components](https://docs.dapr.io/operations/components/certification-lifecycle/)) and, as such, should have a defined set of milestones / requirements for progression between the lifecycle phases. For example, can a user expect from a feature when it is Alpha quality? Once that is released, what is the plan to progress from Alpha to Beta, and the subsequent expectations? What is the expectation when this feature becomes Stable? It is important to identify what functionality or performance guarantees we are making to users of Dapr when adding something new.
 
 For example, the lifecycle expectations of a "Foobar API" that is going to replace an existing API might look something like:
 
